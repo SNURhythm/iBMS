@@ -1,13 +1,18 @@
 
 using System;
+using System.Collections;
+using FMOD;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
+using Debug = UnityEngine.Debug;
+using Thread = System.Threading.Thread;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 
 public class Input : MonoBehaviour
 {
+    private RhythmControl rhythmControl;
     private int enhancedTouchCnt = 0;
 
     private void OnEnable()
@@ -24,10 +29,13 @@ public class Input : MonoBehaviour
 
     private void Awake()
     {
-        Application.targetFrameRate = 120;
+        rhythmControl = GetComponent<RhythmControl>();
+
         Debug.Log("Input Awake");
-        // set polling frequency to 4000Hz
-        InputSystem.pollingFrequency = 4000;
+        // set polling frequency to 1000Hz
+        InputSystem.pollingFrequency = 1000;
+        // set fixed update rate to 1000Hz
+        Time.fixedDeltaTime = 1.0f / 1000.0f;
     }
 
     private void Start()
@@ -35,13 +43,14 @@ public class Input : MonoBehaviour
         Touch.onFingerMove += FingerMove;
         Touch.onFingerDown += FingerDown;
         Touch.onFingerUp += FingerUp;
-        
+
     }
+    
 
     private void FingerMove(Finger obj)
     {  
         // TODO: remove this
-        
+        rhythmControl.FingerMove(obj);
         Debug.Log("Finger Move["+obj.index+"]: " + obj.currentTouch.screenPosition + " " + enhancedTouchCnt);
         // draw circle at finger position
         // first transform finger position to world position
