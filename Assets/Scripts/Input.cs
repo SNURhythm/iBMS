@@ -20,7 +20,7 @@ public class Input : MonoBehaviour
         EnhancedTouchSupport.Enable();
         TouchSimulation.Enable();
     }
-    
+
     private void OnDisable()
     {
         EnhancedTouchSupport.Disable();
@@ -45,13 +45,13 @@ public class Input : MonoBehaviour
         Touch.onFingerUp += FingerUp;
 
     }
-    
+
 
     private void FingerMove(Finger obj)
-    {  
+    {
         // TODO: remove this
         rhythmControl.FingerMove(obj);
-        Debug.Log("Finger Move["+obj.index+"]: " + obj.currentTouch.screenPosition + " " + enhancedTouchCnt);
+        //Debug.Log("Finger Move[" + obj.index + "]: " + obj.currentTouch.screenPosition + " " + enhancedTouchCnt);
         // draw circle at finger position
         // first transform finger position to world position
         // check range
@@ -70,12 +70,12 @@ public class Input : MonoBehaviour
 
     private void FingerDown(Finger obj)
     {
-        Debug.Log("Finger Down["+obj.index+"]: " + obj.currentTouch.screenPosition + " isActive: " + obj.isActive);
+        //Debug.Log("Finger Down[" + obj.index + "]: " + obj.currentTouch.screenPosition + " isActive: " + obj.isActive);
     }
-    
+
     private void FingerUp(Finger obj)
     {
-        Debug.Log("Finger Up["+obj.index+"]: " + obj.currentTouch.screenPosition + " isActive: " + obj.isActive);
+        //Debug.Log("Finger Up[" + obj.index + "]: " + obj.currentTouch.screenPosition + " isActive: " + obj.isActive);
     }
 
 

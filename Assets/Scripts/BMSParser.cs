@@ -1,80 +1,81 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Timing = System.UInt64;
 using System.Text.RegularExpressions;
 
-public abstract class ChartObject
-{
-    public Timing timing;
-}
 
-public class Note : ChartObject
+public class Note
 {
-    private int wav;
+    public int wav;
+    public TimeLine timeline;
+    public int lane;
     // 레인
     // private Note nextNote;
+    public Note(int wav)
+    {
+        this.wav = wav;
+    }
 }
 public class LongNote : Note
 {
-    private LongNote end;
+    public LongNote end;
 
     public bool isEnd()
     {
         return end == null;
     }
+    public LongNote(int wav) : base(wav)
+    {
+
+    }
 }
 
-
-public class BpmChange : ChartObject
-{
-
-}
 
 public class TimeLine
 {
-    private Timing timing;
-    private List<Note> notes;
-    private double bpm;
-    private double scroll = 1.0;
-    private double pause_length;
 
-    /*
-    
-    #03901:00
-    #03901:4N000000003S4Q52
-    #03901:58
-    #03901:006Z006Y006Z006Y
-    #03901:00
-    #03901:007G007H
-    #03901:00
-    #03901:9N00009O00009P009O00009N00009L00
-    #03903:CA
-    #03911:7V000025
-    #03912:000000000000002T
-    #03913:2O
-    #03914:00350000002T0000
-    #03915:0032
-    #03916:71
-    #03918:0000003A00000000
-    #03919:003B0000
-    
-    */
-
-    /*
-        변속
-        일시정지
-
-        변박 -> 마디에
-    */
-
+    public Timing timing;
+    public List<Note> backgroundNotes;
+    public List<Note> notes;
+    public List<Note> invisibleNotes;
+    public bool bpmChange = false;
+    public double bpm = 0.0;
+    public double scroll = 1.0;
+    public double pauseLength = 0;
+    public TimeLine(int lanes)
+    {
+        notes = Enumerable.Repeat<Note>(null, lanes).ToList();
+        invisibleNotes = Enumerable.Repeat<Note>(null, lanes).ToList();
+        backgroundNotes = new List<Note>();
+    }
+    public TimeLine SetNote(int lane, Note note)
+    {
+        notes[lane] = note;
+        note.lane = lane;
+        note.timeline = this;
+        return this;
+    }
+    public TimeLine SetInvisibleNote(int lane, Note note)
+    {
+        invisibleNotes[lane] = note;
+        note.lane = lane;
+        note.timeline = this;
+        return this;
+    }
+    public TimeLine AddBackgroundNote(Note note)
+    {
+        backgroundNotes.Add(note);
+        return this;
+    }
 }
-// .bms (5key) parser
+// .bms (7key) parser
 
 public class Measure
 {
-    private double length;
-    private List<TimeLine> timelines;
+    public double scale = 1; // 0 ~ 1
+    public List<TimeLine> timelines;
 
 
 }
@@ -87,7 +88,7 @@ public class Chart
 
     public double bpm;
 
-    public List<Measure> measures;
+    public List<TimeLine> timelines = new List<TimeLine>();
 }
 
 public class BMSParser : Parser
@@ -134,6 +135,8 @@ public class BMSParser : Parser
         
      }
     */
+    const int TEMP_KEY = 8;
+    public const int NO_WAV = -1;
     public const int LANE_AUTOPLAY = 1;
     public const int SECTION_RATE = 2;
     public const int BPM_CHANGE = 3;
@@ -156,7 +159,7 @@ public class BMSParser : Parser
     private static readonly int[] CHANNELASSIGN_POPN = { 0, 1, 2, 3, 4, -1, -1, -1, -1, -1, 5, 6, 7, 8, -1, -1, -1, -1 };
 
     public const int SCROLL = 1020;
-
+    private int lnobj;
     public static readonly int[] NOTE_CHANNELS = {
         P1_KEY_BASE,
         P2_KEY_BASE,
@@ -167,12 +170,12 @@ public class BMSParser : Parser
         P1_MINE_KEY_BASE,
         P2_MINE_KEY_BASE
     };
-    private string[] wavTable = new string[36 * 36];
+    public string[] wavTable = new string[36 * 36];
     private double[] bpmTable = new double[36 * 36];
 
     private Dictionary<int, Dictionary<double, TimeLine>> sections;
 
-    private Chart chart = new Chart();
+    public Chart chart = new Chart();
 
     private int decodeBase36(string str)
     {
@@ -202,6 +205,7 @@ public class BMSParser : Parser
 
     private void ParseHeader(string cmd, string xx, string value)
     {
+        Debug.Log($"cmd: {cmd}, xx: {xx} isXXNull: {xx == null}, value: {value}");
         switch (cmd)
         {
             case "PLAYER":
@@ -220,7 +224,7 @@ public class BMSParser : Parser
                 {
                     throw new System.Exception("invalid BPM value");
                 }
-                if (xx == null)
+                if (xx == null || xx.Length == 0)
                 { // chart initial bpm
                     chart.bpm = double.Parse(value);
                 }
@@ -261,6 +265,9 @@ public class BMSParser : Parser
                 break;
             case "ENDIF":
                 break;
+            case "LNOBJ":
+                lnobj = decodeBase36(value);
+                break;
             // case "ExtChr":
             // break;
             default:
@@ -269,53 +276,12 @@ public class BMSParser : Parser
         }
     }
 
-    private void ParseMeasure(string measure, string channel, string value)
-    {
-
-        /*
-        
-        */
-
-        if (value.Length % 2 != 0)
-        {
-            throw new System.Exception("invalid value length");
-        }
-        int measureNumber = int.Parse(measure);
-        var section = sections[measureNumber];
-        int beatLength = value.Length / 2;
-        int channelNumber = decodeBase36(channel);
-        switch (channelNumber)
-        {
-            case -1:
-                break;
-            case LANE_AUTOPLAY:
-                break;
-            case SECTION_RATE:
-                break;
-            case BPM_CHANGE:
-                break;
-            case BGA_PLAY:
-                break;
-            case POOR_PLAY:
-                break;
-            case LAYER_PLAY:
-                break;
-            case BPM_CHANGE_EXTEND:
-                break;
-            case STOP:
-                break;
-
-        }
-        int laneNumber;
-        if (channelNumber >= P1_KEY_BASE && channelNumber < P1_KEY_BASE + 9)
-        {
-
-        }
-
-
-    }
     public void Parse(string path)
     {
+
+        // <measure number, (channel, data)>
+        Dictionary<int, List<(int channel, string data)>> measures = new();
+
         // read line by line
         var br = new System.IO.StreamReader(path);
         string line;
@@ -326,38 +292,228 @@ public class BMSParser : Parser
             var match = measureRegex.Match(line);
             if (match.Success)
             {
-                var measure = match.Groups[1].Value;
-                var channel = match.Groups[2].Value;
+                int measure = int.Parse(match.Groups[1].Value);
+                int channel = decodeBase36(match.Groups[2].Value);
                 var value = match.Groups[3].Value;
-
+                if (!measures.ContainsKey(measure))
+                {
+                    measures.Add(measure, new List<(int channel, string data)>());
+                }
+                measures[measure].Add((channel, value));
                 // TODO: 마디별로 한 번에 처리하도록 수정
-                ParseMeasure(measure, channel, value);
+                // ParseMeasure(int.Parse(measure), decodeBase36(channel, value);
             }
             else
             {
-                var regex = new Regex(@"#([A-Za-z]+)(\d\d)? +(.+)?");
-                match = regex.Match(line);
-                if (match.Success)
+                if (line.StartsWith("#WAV") || line.StartsWith("#BMP"))
                 {
-                    var cmd = match.Groups[1].Value;
-                    var xx = match.Groups.Count > 3 ? match.Groups[2].Value : null;
-                    var value = match.Groups.Count == 3 ? match.Groups[2].Value : (match.Groups.Count > 3 ? match.Groups[3].Value : null);
+                    var xx = line.Substring(4, 2);
+                    var value = line.Substring(7);
+                    ParseHeader(line.Substring(1, 3), xx, value); // TODO: refactor this shit
+                }
+                else
+                {
+                    var regex = new Regex(@"#([A-Za-z]+)(\d\d)? +(.+)?");
+                    match = regex.Match(line);
+                    if (match.Success)
+                    {
+                        var cmd = match.Groups[1].Value;
+                        var xx = match.Groups.Count > 3 ? match.Groups[2].Value : null;
+                        var value = match.Groups.Count == 3 ? match.Groups[2].Value : (match.Groups.Count > 3 ? match.Groups[3].Value : null);
 
-                    ParseHeader(cmd, xx, value);
+                        ParseHeader(cmd, xx, value);
+                    }
                 }
             }
+        }
 
+        int lastMeasure = measures.Keys.Max();
+
+        Timing timePassed = 0;
+        double totalMeasureScale = 0;
+        double bpm = chart.bpm;
+        Note[] lastNote = new Note[10];
+
+        for (int i = 0; i <= lastMeasure; i++)
+        {
+            if (measures.ContainsKey(i))
+            {
+                // gcd (int, int)
+
+                Measure measure = new();
+                SortedDictionary<double, TimeLine> timelines = new();
+
+                foreach ((int channel, string data) in measures[i])
+                {
+                    int _channel = channel;
+                    if (channel == SECTION_RATE)
+                    {
+                        measure.scale = double.Parse(data);
+                        Debug.Log($"measure.scale: {measure.scale}, on measure {i}");
+                        continue;
+                    }
+
+                    int laneNumber = 0;
+                    if (channel >= P1_KEY_BASE && channel < P1_KEY_BASE + 9)
+                    {
+                        laneNumber = CHANNELASSIGN_BEAT7[channel - P1_KEY_BASE];
+                        _channel = P1_KEY_BASE;
+                    }
+                    else if (channel >= P2_KEY_BASE && channel < P2_KEY_BASE + 9)
+                    {
+                        laneNumber = CHANNELASSIGN_BEAT7[channel - P2_KEY_BASE + 9];
+                        _channel = P1_KEY_BASE;
+                    }
+                    else if (channel >= P1_INVISIBLE_KEY_BASE && channel < P1_INVISIBLE_KEY_BASE + 9)
+                    {
+                        laneNumber = CHANNELASSIGN_BEAT7[channel - P1_INVISIBLE_KEY_BASE];
+                        _channel = P1_INVISIBLE_KEY_BASE;
+                    }
+                    else if (channel >= P2_INVISIBLE_KEY_BASE && channel < P2_INVISIBLE_KEY_BASE + 9)
+                    {
+                        laneNumber = CHANNELASSIGN_BEAT7[channel - P2_INVISIBLE_KEY_BASE + 9];
+                        _channel = P1_INVISIBLE_KEY_BASE;
+                    }
+                    else if (channel >= P1_LONG_KEY_BASE && channel < P1_LONG_KEY_BASE + 9)
+                    {
+                        laneNumber = CHANNELASSIGN_BEAT7[channel - P1_LONG_KEY_BASE];
+                        _channel = P1_LONG_KEY_BASE;
+                    }
+                    else if (channel >= P2_LONG_KEY_BASE && channel < P2_LONG_KEY_BASE + 9)
+                    {
+                        laneNumber = CHANNELASSIGN_BEAT7[channel - P2_LONG_KEY_BASE + 9];
+                        _channel = P1_LONG_KEY_BASE;
+                    }
+                    else if (channel >= P1_MINE_KEY_BASE && channel < P1_MINE_KEY_BASE + 9)
+                    {
+                        laneNumber = CHANNELASSIGN_BEAT7[channel - P1_MINE_KEY_BASE];
+                        _channel = P1_MINE_KEY_BASE;
+                    }
+                    else if (channel >= P2_MINE_KEY_BASE && channel < P2_MINE_KEY_BASE + 9)
+                    {
+                        laneNumber = CHANNELASSIGN_BEAT7[channel - P2_MINE_KEY_BASE + 9];
+                        _channel = P1_MINE_KEY_BASE;
+                    }
+
+                    if (laneNumber == -1) continue;
+
+                    for (int j = 0; j < data.Length / 2; j++)
+                    {
+                        int g = gcd(j, data.Length / 2);
+                        double position = ((double)(j / g)) / (data.Length / 2 / g);
+                        string val = data.Substring(j * 2, 2);
+
+                        if (!timelines.ContainsKey(position))
+                        {
+                            timelines.Add(position, new TimeLine(TEMP_KEY));
+                        }
+
+                        TimeLine timeline = timelines[position];
+                        switch (_channel)
+                        {
+                            case LANE_AUTOPLAY:
+                                if (decodeBase36(val) != 0)
+                                    timeline.AddBackgroundNote(new Note(decodeBase36(val)));
+                                break;
+                            case BPM_CHANGE:
+                                timeline.bpm = System.Convert.ToInt32(val, 16);
+                                Debug.Log($"BPM_CHANGE: {timeline.bpm}, on measure {i}");
+                                timeline.bpmChange = true;
+                                break;
+                            case BGA_PLAY:
+                                break;
+                            case POOR_PLAY:
+                                break;
+                            case LAYER_PLAY:
+                                break;
+                            case BPM_CHANGE_EXTEND:
+                                timeline.bpm = bpmTable[decodeBase36(val)];
+                                Debug.Log($"BPM_CHANGE_EXTEND: {timeline.bpm}, on measure {i}");
+                                timeline.bpmChange = true;
+                                break;
+                            case STOP:
+                                break;
+                            case P1_KEY_BASE:
+                                int ch = decodeBase36(val);
+                                if (ch == lnobj)
+                                {
+                                    if (lastNote[laneNumber] != null)
+                                    {
+                                        TimeLine lastTimeline = lastNote[laneNumber].timeline;
+                                        LongNote ln = new LongNote(lastNote[laneNumber].wav);
+                                        ln.end = new LongNote(NO_WAV);
+                                        lastTimeline.SetNote(
+                                            laneNumber, ln
+                                        );
+                                        timeline.SetNote(
+                                            laneNumber, ln.end
+                                        );
+                                    }
+
+                                }
+                                else if (ch != 0)
+                                {
+                                    Note note = new Note(ch);
+                                    timeline.SetNote(laneNumber, note);
+                                    lastNote[laneNumber] = note;
+                                }
+                                break;
+                            case P1_INVISIBLE_KEY_BASE:
+
+                                timeline.SetInvisibleNote(laneNumber, new Note(decodeBase36(val)));
+
+                                break;
+                            case P1_LONG_KEY_BASE:
+                                break;
+                            case P1_MINE_KEY_BASE:
+                                break;
+
+
+
+                        }
+
+                    }
+
+
+
+                }
+
+
+                double lastPosition = 0.0;
+                foreach ((double position, TimeLine timeline) in timelines)
+                {
+                    if (timeline.bpmChange) bpm = timeline.bpm;
+                    Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
+                    double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm;
+
+
+                    timePassed += (Timing)interval;
+                    timeline.timing = timePassed;
+                    lastPosition = position;
+                    chart.timelines.Add(timeline);
+                }
+
+                timePassed += (Timing)(240 * 1000 * 1000 * (1 - lastPosition) * measure.scale / bpm);
+
+                totalMeasureScale += measure.scale;
+
+            }
 
         }
+
+
     }
 
+    private int gcd(int a, int b)
+    {
+        if (b == 0) return a;
+        return gcd(b, a % b);
+    }
 
 
     private bool MatchKeyword(string line, string keyword)
     {
         if (line.Length <= keyword.Length) return false; // '=' is intended to exclude '#'
         return line.ToLower().Substring(0, keyword.Length) == keyword.ToLower();
-
-
     }
 }
