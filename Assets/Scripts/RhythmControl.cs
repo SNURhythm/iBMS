@@ -166,9 +166,21 @@ public class RhythmControl : MonoBehaviour
             var channel = new FMOD.Channel();
             channel.setChannelGroup(_channelGroup);
             channel.setLoopCount(0);
-
-            result = _system.createSound(Application.streamingAssetsPath + "/testbms/" + _parser.wavTable[i],
-            FMOD.MODE.CREATESAMPLE | FMOD.MODE.ACCURATETIME, out wav[i]);
+            byte[] wavBytes;
+#if UNITY_EDITOR
+            wavBytes = System.IO.File.ReadAllBytes(Application.streamingAssetsPath + "/testbms/" + _parser.wavTable[i]);
+#elif UNITY_ANDROID
+                var www = UnityEngine.Networking.UnityWebRequest.Get(Application.streamingAssetsPath+"/testbms/"+_parser.wavTable[i]);
+                www.SendWebRequest();
+                while (!www.isDone) { }
+                wavBytes = www.downloadHandler.data;
+#endif
+            var createSoundExInfo = new FMOD.CREATESOUNDEXINFO()
+            {
+                length = (uint)wavBytes.Length,
+                cbsize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(FMOD.CREATESOUNDEXINFO))
+            };
+            result = _system.createSound(wavBytes, FMOD.MODE.OPENMEMORY | FMOD.MODE.CREATESAMPLE | FMOD.MODE.ACCURATETIME, ref createSoundExInfo, out wav[i]);
             wav[i].setLoopCount(0);
             // _system.playSound(wav[i], _channelGroup, true, out channel);
             channels[i] = channel;
