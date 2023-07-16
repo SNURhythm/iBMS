@@ -42,8 +42,11 @@ public class RhythmControl : MonoBehaviour
 #endif
         FMODUnity.RuntimeManager.StudioSystem.release();
         FMODUnity.RuntimeManager.CoreSystem.release();
-        FMOD.Factory.System_Create(out _system);
+        FMOD.Factory.System_Create(out _system); // TODO: make system singleton
         _system.setSoftwareChannels(256);
+        // set buffer size
+        var result = _system.setDSPBufferSize(256, 2);
+        if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
         _system.init(MAX_CHANNELS, FMOD.INITFLAGS.NORMAL, IntPtr.Zero);
         LoadGame();
         Debug.Log("Load Complete");
@@ -61,8 +64,7 @@ public class RhythmControl : MonoBehaviour
         var startDSP = startDSPClock + MsToDSP(timing / 1000);
         if (playingChannels >= MAX_CHANNELS)
         {
-            Debug.Log("Too many channels playing... Queueing");
-            _soundQueue.Enqueue((startDSP, wav));
+            _soundQueue.Enqueue((startDSP, wav)); // Too many channels playing, queue the sound
             return;
         }
         _system.playSound(this.wav[wav], _channelGroup, true, out channels[wav]);
@@ -119,7 +121,7 @@ public class RhythmControl : MonoBehaviour
         _system.getSoftwareFormat(out var samplerate, out _, out _);
         // WriteTxt(Application.streamingAssetsPath + "/log.log", "FixedUpdate: " + (double)dspclock / samplerate * 1000 + ", " + Time.time);
 
-        // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
+        Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         _system.getChannelsPlaying(out int playingChannels, out int realChannels);
         Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
         var availableChannels = MAX_CHANNELS - playingChannels;
@@ -142,11 +144,6 @@ public class RhythmControl : MonoBehaviour
         _parser.Parse(Application.streamingAssetsPath + "/testbms/PUPA[SPH].bml");
         FMOD.RESULT result;
 
-        // set buffer size
-        result = _system.setDSPBufferSize(256, 1);
-        if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
-
-        _system.init(256, FMOD.INITFLAGS.NORMAL, IntPtr.Zero);
         // set defaultDecodeBufferSize
         var advancedSettings = new FMOD.ADVANCEDSETTINGS
         {
