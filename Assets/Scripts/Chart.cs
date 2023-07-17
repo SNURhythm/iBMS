@@ -7,6 +7,6 @@ public class Chart
     public double Bpm;
     public string Genre;
 
-    public List<TimeLine> Timelines = new();
+    public readonly List<TimeLine> Timelines = new();
     public string Title;
 }
