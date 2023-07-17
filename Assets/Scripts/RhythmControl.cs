@@ -17,7 +17,7 @@ public class RhythmControl : MonoBehaviour
     private readonly Queue<(ulong dspclock, int wav)> soundQueue = new();
 
     private readonly Sound[] wavSounds = new Sound[36 * 36];
-    private Channel channel;
+
     private ChannelGroup channelGroup;
 
     private bool isPlaying;
@@ -79,7 +79,7 @@ public class RhythmControl : MonoBehaviour
             {
                 if (soundQueue.Count == 0) break;
                 var (startDSP, wav) = soundQueue.Dequeue();
-                system.playSound(wavSounds[wav], channelGroup, true, out channel);
+                system.playSound(wavSounds[wav], channelGroup, true, out var channel);
                 channel.setDelay(startDSP, 0);
                 channel.setPaused(false);
             }
@@ -100,7 +100,7 @@ public class RhythmControl : MonoBehaviour
             return;
         }
 
-        system.playSound(wavSounds[wav], channelGroup, true, out channel);
+        system.playSound(wavSounds[wav], channelGroup, true, out var channel);
         // this.wav[wav].getLength(out uint length, FMOD.TIMEUNIT.MS);
         // var lengthDSP = MsToDSP((double)length);
 
