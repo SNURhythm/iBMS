@@ -282,18 +282,19 @@ public class BMSParser : Parser
         Dictionary<int, List<(int channel, string data)>> measures = new();
 
         // read line by line
-#if UNITY_EDITOR
-        var br = new System.IO.StreamReader(path);
-
-#elif UNITY_ANDROID
-        Debug.Log("Android");
-        //use UnityWebRequest to read file
-        var www = UnityEngine.Networking.UnityWebRequest.Get(path);
-        www.SendWebRequest();
-        while (!www.isDone) { }
-        byte[] bytes = www.downloadHandler.data;
-        var br = new System.IO.StreamReader(new System.IO.MemoryStream(bytes));
-#endif
+        System.IO.StreamReader br;
+        if(Application.platform == RuntimePlatform.Android)
+        {
+            Debug.Log("Android");
+            //use UnityWebRequest to read file
+            var www = UnityEngine.Networking.UnityWebRequest.Get(path);
+            www.SendWebRequest();
+            while (!www.isDone) { }
+            byte[] bytes = www.downloadHandler.data;
+            br = new System.IO.StreamReader(new System.IO.MemoryStream(bytes));
+        } else {
+            br = new System.IO.StreamReader(path);
+        }
         string line;
         while ((line = br.ReadLine()) != null)
         {

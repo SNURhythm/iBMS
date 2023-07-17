@@ -167,14 +167,17 @@ public class RhythmControl : MonoBehaviour
             channel.setChannelGroup(_channelGroup);
             channel.setLoopCount(0);
             byte[] wavBytes;
-#if UNITY_EDITOR
-            wavBytes = System.IO.File.ReadAllBytes(Application.streamingAssetsPath + "/testbms/" + _parser.wavTable[i]);
-#elif UNITY_ANDROID
+            if (Application.platform == RuntimePlatform.Android)
+            {
                 var www = UnityEngine.Networking.UnityWebRequest.Get(Application.streamingAssetsPath+"/testbms/"+_parser.wavTable[i]);
                 www.SendWebRequest();
                 while (!www.isDone) { }
                 wavBytes = www.downloadHandler.data;
-#endif
+            }
+            else
+            {
+                wavBytes = File.ReadAllBytes(Application.streamingAssetsPath + "/testbms/" + _parser.wavTable[i]);
+            }
             var createSoundExInfo = new FMOD.CREATESOUNDEXINFO()
             {
                 length = (uint)wavBytes.Length,
