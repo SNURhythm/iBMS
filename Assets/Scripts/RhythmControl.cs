@@ -13,7 +13,7 @@ using Debug = UnityEngine.Debug;
 public class RhythmControl : MonoBehaviour
 {
     private const int MaxChannels = 1024;
-    private readonly Channel[] channels = new Channel[36 * 36];
+
     private readonly Queue<(ulong dspclock, int wav)> soundQueue = new();
 
     private readonly Sound[] wavSounds = new Sound[36 * 36];
@@ -79,7 +79,7 @@ public class RhythmControl : MonoBehaviour
             {
                 if (soundQueue.Count == 0) break;
                 var (startDSP, wav) = soundQueue.Dequeue();
-                system.playSound(wavSounds[wav], channelGroup, true, out channels[wav]);
+                system.playSound(wavSounds[wav], channelGroup, true, out channel);
                 channel.setDelay(startDSP, 0);
                 channel.setPaused(false);
             }
