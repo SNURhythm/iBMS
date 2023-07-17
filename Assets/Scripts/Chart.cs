@@ -2,11 +2,11 @@
 
 public class Chart
 {
-    public string artist;
+    public string Artist;
 
-    public double bpm;
-    public string genre;
+    public double Bpm;
+    public string Genre;
 
-    public List<TimeLine> timelines = new();
-    public string title;
+    public List<TimeLine> Timelines = new();
+    public string Title;
 }

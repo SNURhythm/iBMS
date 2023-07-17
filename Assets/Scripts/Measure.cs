@@ -1,4 +1,4 @@
 ﻿public class Measure
 {
-    public double scale = 1; // 0 ~ 1
+    public double Scale = 1; // 0 ~ 1
 }

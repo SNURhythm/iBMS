@@ -5,7 +5,6 @@ using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 public class Input : MonoBehaviour
 {
-    private int enhancedTouchCnt = 0;
     private RhythmControl rhythmControl;
 
     private void Awake()
@@ -49,6 +48,7 @@ public class Input : MonoBehaviour
         // check range
         if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
             obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
+        if (Camera.main == null) return;
         var worldPosition = Camera.main.ScreenToWorldPoint(new Vector3(obj.currentTouch.screenPosition.x,
             obj.currentTouch.screenPosition.y, 10));
         // then summon a circle at that position

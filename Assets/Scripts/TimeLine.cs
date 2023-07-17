@@ -3,42 +3,42 @@ using System.Linq;
 
 public class TimeLine
 {
-    public List<Note> backgroundNotes;
-    public double bpm = 0.0;
-    public bool bpmChange = false;
-    public List<Note> invisibleNotes;
-    public List<Note> notes;
-    public double pauseLength = 0;
-    public double scroll = 1.0;
+    public readonly List<Note> BackgroundNotes;
+    public double Bpm = 0.0;
+    public bool BpmChange = false;
+    public readonly List<Note> InvisibleNotes;
+    public readonly List<Note> Notes;
+    public double PauseLength = 0;
+    public double Scroll = 1.0;
 
-    public ulong timing;
+    public ulong Timing;
 
     public TimeLine(int lanes)
     {
-        notes = Enumerable.Repeat<Note>(null, lanes).ToList();
-        invisibleNotes = Enumerable.Repeat<Note>(null, lanes).ToList();
-        backgroundNotes = new List<Note>();
+        Notes = Enumerable.Repeat<Note>(null, lanes).ToList();
+        InvisibleNotes = Enumerable.Repeat<Note>(null, lanes).ToList();
+        BackgroundNotes = new List<Note>();
     }
 
     public TimeLine SetNote(int lane, Note note)
     {
-        notes[lane] = note;
-        note.lane = lane;
-        note.timeline = this;
+        Notes[lane] = note;
+        note.Lane = lane;
+        note.Timeline = this;
         return this;
     }
 
     public TimeLine SetInvisibleNote(int lane, Note note)
     {
-        invisibleNotes[lane] = note;
-        note.lane = lane;
-        note.timeline = this;
+        InvisibleNotes[lane] = note;
+        note.Lane = lane;
+        note.Timeline = this;
         return this;
     }
 
     public TimeLine AddBackgroundNote(Note note)
     {
-        backgroundNotes.Add(note);
+        BackgroundNotes.Add(note);
         return this;
     }
 }

@@ -13,12 +13,16 @@ public class Fps : MonoBehaviour
 
         var fps = 1.0f / Time.deltaTime;
         var ms = Time.deltaTime * 1000.0f;
-        var text = string.Format("{0:N1} FPS ({1:N1}ms)", fps, ms);
+        var text = $"{fps:N1} FPS ({ms:N1}ms)";
 
-        var style = new GUIStyle();
-
-        style.fontSize = fontSize;
-        style.normal.textColor = color;
+        var style = new GUIStyle
+        {
+            fontSize = fontSize,
+            normal =
+            {
+                textColor = color
+            }
+        };
 
         GUI.Label(position, text, style);
     }

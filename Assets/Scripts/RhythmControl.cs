@@ -12,29 +12,29 @@ using Debug = UnityEngine.Debug;
 
 public class RhythmControl : MonoBehaviour
 {
-    private const int MAX_CHANNELS = 1024;
-    private Channel _channel;
-    private ChannelGroup _channelGroup;
-#if UNITY_EDITOR
-    private PauseState _lastPauseState = PauseState.Unpaused;
-
-#endif
-    private Sound _music;
-    private BMSParser _parser;
-    private readonly Queue<(ulong dspclock, int wav)> _soundQueue = new();
-    private FMOD.System _system;
+    private const int MaxChannels = 1024;
     private readonly Channel[] channels = new Channel[36 * 36];
+    private readonly Queue<(ulong dspclock, int wav)> soundQueue = new();
+
+    private readonly Sound[] wavSounds = new Sound[36 * 36];
+    private Channel channel;
+    private ChannelGroup channelGroup;
 
     private bool isPlaying;
+#if UNITY_EDITOR
+    private PauseState lastPauseState = PauseState.Unpaused;
+
+#endif
+    private Sound music;
+    private BMSParser parser;
 
     private ulong startDSPClock;
-    private int timelineCursor = 0;
-    private readonly Sound[] wav = new Sound[36 * 36];
+    private FMOD.System system;
 
     private void Awake()
     {
         Application.targetFrameRate = 120;
-        _parser = new BMSParser();
+        parser = new BMSParser();
     }
 
     // Start is called before the first frame update
@@ -42,20 +42,20 @@ public class RhythmControl : MonoBehaviour
     {
 #if UNITY_EDITOR
         EditorApplication.pauseStateChanged += OnPauseStateChanged;
-        _lastPauseState = EditorApplication.isPaused ? PauseState.Paused : PauseState.Unpaused;
+        lastPauseState = EditorApplication.isPaused ? PauseState.Paused : PauseState.Unpaused;
 #endif
         RuntimeManager.StudioSystem.release();
         RuntimeManager.CoreSystem.release();
-        Factory.System_Create(out _system); // TODO: make system singleton
-        _system.setSoftwareChannels(256);
+        Factory.System_Create(out system); // TODO: make system singleton
+        system.setSoftwareChannels(256);
         // set buffer size
         // var result = _system.setDSPBufferSize(256, 2);
         // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
-        _system.init(MAX_CHANNELS, INITFLAGS.NORMAL, IntPtr.Zero);
+        system.init(MaxChannels, INITFLAGS.NORMAL, IntPtr.Zero);
         LoadGame();
         Debug.Log("Load Complete");
-        _channelGroup.setPaused(true);
-        Invoke("StartMusic", 3.0f);
+        channelGroup.setPaused(true);
+        Invoke(nameof(StartMusic), 3.0f);
     }
 
     // Update is called once per frame
@@ -65,78 +65,78 @@ public class RhythmControl : MonoBehaviour
 
     private void FixedUpdate()
     {
-        _channelGroup.getDSPClock(out var dspclock, out var parentclock);
-        _system.update();
-        _system.getSoftwareFormat(out var samplerate, out _, out _);
+        // channelGroup.getDSPClock(out var dspclock, out var parentclock);
+        system.update();
+        // system.getSoftwareFormat(out var samplerate, out _, out _);
         // WriteTxt(Application.streamingAssetsPath + "/log.log", "FixedUpdate: " + (double)dspclock / samplerate * 1000 + ", " + Time.time);
 
         // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
-        _system.getChannelsPlaying(out var playingChannels, out var realChannels);
+        system.getChannelsPlaying(out var playingChannels, out var realChannels);
         // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
-        var availableChannels = MAX_CHANNELS - playingChannels;
-        if (availableChannels > 0 && _soundQueue.Count > 0)
+        var availableChannels = MaxChannels - playingChannels;
+        if (availableChannels > 0 && soundQueue.Count > 0)
             for (var i = 0; i < availableChannels; i++)
             {
-                if (_soundQueue.Count == 0) break;
-                var (startDSP, wav) = _soundQueue.Dequeue();
-                _system.playSound(this.wav[wav], _channelGroup, true, out channels[wav]);
-                channels[wav].setDelay(startDSP, 0);
-                channels[wav].setPaused(false);
+                if (soundQueue.Count == 0) break;
+                var (startDSP, wav) = soundQueue.Dequeue();
+                system.playSound(wavSounds[wav], channelGroup, true, out channels[wav]);
+                channel.setDelay(startDSP, 0);
+                channel.setPaused(false);
             }
     }
 
     private void OnDisable()
     {
-        _system.release();
+        system.release();
     }
 
     private void ScheduleSound(double timing, int wav)
     {
-        _system.getChannelsPlaying(out var playingChannels, out var realChannels);
+        system.getChannelsPlaying(out var playingChannels, out var realChannels);
         var startDSP = startDSPClock + MsToDSP(timing / 1000);
-        if (playingChannels >= MAX_CHANNELS)
+        if (playingChannels >= MaxChannels)
         {
-            _soundQueue.Enqueue((startDSP, wav)); // Too many channels playing, queue the sound
+            soundQueue.Enqueue((startDSP, wav)); // Too many channels playing, queue the sound
             return;
         }
 
-        _system.playSound(this.wav[wav], _channelGroup, true, out channels[wav]);
+        system.playSound(wavSounds[wav], channelGroup, true, out channel);
         // this.wav[wav].getLength(out uint length, FMOD.TIMEUNIT.MS);
         // var lengthDSP = MsToDSP((double)length);
 
-        // channels[wav].setMode(FMOD.MODE.VIRTUAL_PLAYFROMSTART);
-        channels[wav].setDelay(startDSP, 0);
-        channels[wav].setPaused(false);
+        // _channel.setMode(FMOD.MODE.VIRTUAL_PLAYFROMSTART);
+        channel.setDelay(startDSP, 0);
+        channel.setPaused(false);
     }
 
     private void StartMusic()
     {
         if (isPlaying) return;
-        _channelGroup.getDSPClock(out startDSPClock, out _);
-        _channelGroup.setPaused(false);
+        channelGroup.getDSPClock(out startDSPClock, out _);
+        channelGroup.setPaused(false);
         Debug.Log("Play");
-        _parser.chart.timelines.ForEach(timeline =>
+        parser.GetChart().Timelines.ForEach(timeline =>
         {
-            timeline.notes.ForEach(note =>
+            timeline.Notes.ForEach(note =>
             {
-                if (note == null || note.wav == BMSParser.NO_WAV) return;
+                if (note == null || note.Wav == BMSParser.NoWav) return;
                 // Debug.Log(note.wav + "wav");
                 // Debug.Log("NoteTiming: " + timeline.timing / 1000);
-                ScheduleSound(timeline.timing, note.wav);
+                ScheduleSound(timeline.Timing, note.Wav);
             });
-            timeline.backgroundNotes.ForEach(note =>
+            timeline.BackgroundNotes.ForEach(note =>
             {
-                if (note == null || note.wav == BMSParser.NO_WAV) return;
+                if (note == null || note.Wav == BMSParser.NoWav) return;
                 // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
 
-                ScheduleSound(timeline.timing, note.wav);
+                ScheduleSound(timeline.Timing, note.Wav);
             });
-            timeline.invisibleNotes.ForEach(note =>
+            timeline.InvisibleNotes.ForEach(note =>
             {
-                if (note == null || note.wav == BMSParser.NO_WAV) return;
+                if (note == null || note.Wav == BMSParser.NoWav) return;
                 // Debug.Log("BGNoteTiming: " + timeline.timing / 1000);
 
-                ScheduleSound(timeline.timing, note.wav);
+                ScheduleSound(timeline.Timing, note.Wav);
             });
         });
         isPlaying = true;
@@ -144,35 +144,27 @@ public class RhythmControl : MonoBehaviour
 
     private void LoadGame()
     {
-        _parser.Parse(Application.streamingAssetsPath + "/testbms/PUPA[SPH].bml");
-        RESULT result;
+        parser.Parse(Application.streamingAssetsPath + "/testbms/PUPA[SPH].bml");
 
         // set defaultDecodeBufferSize
         var advancedSettings = new ADVANCEDSETTINGS
         {
             defaultDecodeBufferSize = 32
         };
-        result = _system.setAdvancedSettings(ref advancedSettings);
+        var result = system.setAdvancedSettings(ref advancedSettings);
         if (result != RESULT.OK) Debug.Log($"setAdvancedSettings failed. {result}");
 
-        uint blocksize;
-        int numblocks;
-        float ms;
-        int frequency;
-        result = _system.getDSPBufferSize(out blocksize, out numblocks);
-        result = _system.getSoftwareFormat(out frequency, out _, out _);
-        _system.getMasterChannelGroup(out _channelGroup);
+        result = system.getDSPBufferSize(out var blockSize, out var numBlocks);
+        result = system.getSoftwareFormat(out var frequency, out _, out _);
+        system.getMasterChannelGroup(out channelGroup);
 
         for (var i = 0; i < 36 * 36; i++)
         {
-            if (_parser.wavTable[i] == null) continue;
-            var channel = new Channel();
-            channel.setChannelGroup(_channelGroup);
-            channel.setLoopCount(0);
+            if (parser.GetWavFileName(i) == null) continue;
             byte[] wavBytes;
             if (Application.platform == RuntimePlatform.Android)
             {
-                var www = UnityWebRequest.Get(Application.streamingAssetsPath + "/testbms/" + _parser.wavTable[i]);
+                var www = UnityWebRequest.Get(Application.streamingAssetsPath + "/testbms/" + parser.GetWavFileName(i));
                 www.SendWebRequest();
                 while (!www.isDone)
                 {
@@ -182,7 +174,7 @@ public class RhythmControl : MonoBehaviour
             }
             else
             {
-                wavBytes = File.ReadAllBytes(Application.streamingAssetsPath + "/testbms/" + _parser.wavTable[i]);
+                wavBytes = File.ReadAllBytes(Application.streamingAssetsPath + "/testbms/" + parser.GetWavFileName(i));
             }
 
             var createSoundExInfo = new CREATESOUNDEXINFO
@@ -190,48 +182,48 @@ public class RhythmControl : MonoBehaviour
                 length = (uint)wavBytes.Length,
                 cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
             };
-            result = _system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
-                ref createSoundExInfo, out wav[i]);
-            wav[i].setLoopCount(0);
+            result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+                ref createSoundExInfo, out wavSounds[i]);
+            wavSounds[i].setLoopCount(0);
             // _system.playSound(wav[i], _channelGroup, true, out channel);
-            channels[i] = channel;
+
             if (result != RESULT.OK) Debug.Log($"createSound failed wav{i}. {result}");
         }
 
 
-        ms = blocksize * 1000.0f / frequency;
+        var ms = blockSize * 1000.0f / frequency;
 
-        Debug.Log($"Mixer blocksize        = {ms} ms");
-        Debug.Log($"Mixer Total buffersize = {ms * numblocks} ms");
-        Debug.Log($"Mixer Average Latency  = {ms * (numblocks - 1.5f)} ms");
+        Debug.Log($"Mixer blockSize        = {ms} ms");
+        Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
+        Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
     }
 #if UNITY_EDITOR
     private void OnPauseStateChanged(PauseState state)
     {
         Debug.Log($"OnApplicationPause: {state}");
-        _lastPauseState = state;
+        lastPauseState = state;
         if (state == PauseState.Paused)
-            _channelGroup.setPaused(true);
+            channelGroup.setPaused(true);
         else
-            _channelGroup.setPaused(false);
+            channelGroup.setPaused(false);
     }
 #endif
-    private ulong DSPToMs(ulong dspclock)
+    private ulong DSPToMs(ulong dspClock)
     {
-        _system.getSoftwareFormat(out var samplerate, out _, out _);
-        return (ulong)((double)dspclock / samplerate * 1000);
+        system.getSoftwareFormat(out var sampleRate, out _, out _);
+        return (ulong)((double)dspClock / sampleRate * 1000);
     }
 
     private ulong MsToDSP(double ms)
     {
-        _system.getSoftwareFormat(out var samplerate, out _, out _);
-        return (ulong)(ms * samplerate / 1000);
+        system.getSoftwareFormat(out var sampleRate, out _, out _);
+        return (ulong)(ms * sampleRate / 1000);
     }
 
     public void FingerMove(Finger obj)
     {
-        _channelGroup.getDSPClock(out var dspclock, out var parentclock);
-        _system.getSoftwareFormat(out var samplerate, out _, out _);
+        channelGroup.getDSPClock(out var dspClock, out var parentClock);
+        system.getSoftwareFormat(out var sampleRate, out _, out _);
         // WriteTxt(Application.streamingAssetsPath + "/log.log", "Finger Move on clock: " + (double)parentclock / samplerate * 1000 + ", " + Time.time);
     }
 
@@ -244,16 +236,16 @@ public class RhythmControl : MonoBehaviour
         // This text is added only once to the file.
         if (!File.Exists(filePath))
             // Create a file to write to.
-            using (var sw = File.CreateText(filePath))
-            {
-                sw.WriteLine(message);
-            }
+        {
+            using var sw = File.CreateText(filePath);
+            sw.WriteLine(message);
+        }
         else
             // This text is always added, making the file longer over time
             // if it is not deleted.
-            using (var sw = File.AppendText(filePath))
-            {
-                sw.WriteLine(message);
-            }
+        {
+            using var sw = File.AppendText(filePath);
+            sw.WriteLine(message);
+        }
     }
 }
