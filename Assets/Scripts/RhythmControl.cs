@@ -27,6 +27,7 @@ public class RhythmControl : MonoBehaviour
 #endif
     private Sound music;
     private BMSParser parser;
+    private BMSRenderer renderer;
 
     private ulong startDSPClock;
     private FMOD.System system;
@@ -52,6 +53,8 @@ public class RhythmControl : MonoBehaviour
         // var result = _system.setDSPBufferSize(256, 2);
         // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
         system.init(MaxChannels, INITFLAGS.NORMAL, IntPtr.Zero);
+
+        renderer = GetComponent<BMSRenderer>();
         LoadGame();
         Debug.Log("Load Complete");
         channelGroup.setPaused(true);
@@ -115,7 +118,7 @@ public class RhythmControl : MonoBehaviour
         channelGroup.getDSPClock(out startDSPClock, out _);
         channelGroup.setPaused(false);
         Debug.Log("Play");
-        parser.GetChart().Timelines.ForEach(timeline =>
+        parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
         {
             timeline.Notes.ForEach(note =>
             {
@@ -138,7 +141,7 @@ public class RhythmControl : MonoBehaviour
 
                 ScheduleSound(timeline.Timing, note.Wav);
             });
-        });
+        }));
         isPlaying = true;
     }
 

@@ -24,6 +24,7 @@ public class Input : MonoBehaviour
         Touch.onFingerDown += FingerDown;
         Touch.onFingerUp += FingerUp;
     }
+    
 
     private void OnEnable()
     {

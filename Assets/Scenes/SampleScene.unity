@@ -248,6 +248,7 @@ GameObject:
   - component: {fileID: 716382795}
   - component: {fileID: 716382794}
   - component: {fileID: 716382796}
+  - component: {fileID: 716382797}
   m_Layer: 0
   m_Name: RhythmControl
   m_TagString: Untagged
@@ -292,5 +293,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f2cb1cef4908ee94d8e4b51a0be68ccf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &716382797
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 716382793}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 042b6e357e374e9bb4941131326f84b0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.Networking;
-using Timing = System.UInt64;
 
 
 // .bms (7key) parser
@@ -257,12 +256,12 @@ public class BMSParser : IParser
                                     {
                                         var lastTimeline = lastNote[laneNumber].Timeline;
                                         var ln = new LongNote(lastNote[laneNumber].Wav);
-                                        ln.End = new LongNote(NoWav);
+                                        ln.Tail = new LongNote(NoWav);
                                         lastTimeline.SetNote(
                                             laneNumber, ln
                                         );
                                         timeline.SetNote(
-                                            laneNumber, ln.End
+                                            laneNumber, ln.Tail
                                         );
                                     }
                                 }
@@ -289,6 +288,8 @@ public class BMSParser : IParser
 
 
                 var lastPosition = 0.0;
+                measure.Timing = timePassed;
+                chart.Measures.Add(measure);
                 foreach (var (position, timeline) in timelines)
                 {
                     if (timeline.BpmChange) bpm = timeline.Bpm;
@@ -299,7 +300,7 @@ public class BMSParser : IParser
                     timePassed += (ulong)interval;
                     timeline.Timing = timePassed;
                     lastPosition = position;
-                    chart.Timelines.Add(timeline);
+                    measure.Timelines.Add(timeline);
                 }
 
                 timePassed += (ulong)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / bpm);
