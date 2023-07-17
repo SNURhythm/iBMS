@@ -360,7 +360,7 @@ public class BMSParser : Parser
                     if (channel == SECTION_RATE)
                     {
                         measure.scale = double.Parse(data);
-                        Debug.Log($"measure.scale: {measure.scale}, on measure {i}");
+                        // Debug.Log($"measure.scale: {measure.scale}, on measure {i}");
                         continue;
                     }
 
@@ -494,7 +494,7 @@ public class BMSParser : Parser
                 foreach ((double position, TimeLine timeline) in timelines)
                 {
                     if (timeline.bpmChange) bpm = timeline.bpm;
-                    Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
+                    // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
                     double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm;
 
 

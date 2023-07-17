@@ -45,8 +45,8 @@ public class RhythmControl : MonoBehaviour
         FMOD.Factory.System_Create(out _system); // TODO: make system singleton
         _system.setSoftwareChannels(256);
         // set buffer size
-        var result = _system.setDSPBufferSize(256, 2);
-        if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
+        // var result = _system.setDSPBufferSize(256, 2);
+        // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
         _system.init(MAX_CHANNELS, FMOD.INITFLAGS.NORMAL, IntPtr.Zero);
         LoadGame();
         Debug.Log("Load Complete");
@@ -121,9 +121,9 @@ public class RhythmControl : MonoBehaviour
         _system.getSoftwareFormat(out var samplerate, out _, out _);
         // WriteTxt(Application.streamingAssetsPath + "/log.log", "FixedUpdate: " + (double)dspclock / samplerate * 1000 + ", " + Time.time);
 
-        Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
+        // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         _system.getChannelsPlaying(out int playingChannels, out int realChannels);
-        Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
+        // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
         var availableChannels = MAX_CHANNELS - playingChannels;
         if (availableChannels > 0 && _soundQueue.Count > 0)
         {
