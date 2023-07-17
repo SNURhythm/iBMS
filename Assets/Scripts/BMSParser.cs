@@ -1,95 +1,14 @@
-using System.Collections;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using UnityEngine;
-using Timing = System.UInt64;
 using System.Text.RegularExpressions;
+using UnityEngine;
+using UnityEngine.Networking;
+using Timing = System.UInt64;
 
 
-public class Note
-{
-    public int wav;
-    public TimeLine timeline;
-    public int lane;
-    // 레인
-    // private Note nextNote;
-    public Note(int wav)
-    {
-        this.wav = wav;
-    }
-}
-public class LongNote : Note
-{
-    public LongNote end;
-
-    public bool isEnd()
-    {
-        return end == null;
-    }
-    public LongNote(int wav) : base(wav)
-    {
-
-    }
-}
-
-
-public class TimeLine
-{
-
-    public Timing timing;
-    public List<Note> backgroundNotes;
-    public List<Note> notes;
-    public List<Note> invisibleNotes;
-    public bool bpmChange = false;
-    public double bpm = 0.0;
-    public double scroll = 1.0;
-    public double pauseLength = 0;
-    public TimeLine(int lanes)
-    {
-        notes = Enumerable.Repeat<Note>(null, lanes).ToList();
-        invisibleNotes = Enumerable.Repeat<Note>(null, lanes).ToList();
-        backgroundNotes = new List<Note>();
-    }
-    public TimeLine SetNote(int lane, Note note)
-    {
-        notes[lane] = note;
-        note.lane = lane;
-        note.timeline = this;
-        return this;
-    }
-    public TimeLine SetInvisibleNote(int lane, Note note)
-    {
-        invisibleNotes[lane] = note;
-        note.lane = lane;
-        note.timeline = this;
-        return this;
-    }
-    public TimeLine AddBackgroundNote(Note note)
-    {
-        backgroundNotes.Add(note);
-        return this;
-    }
-}
 // .bms (7key) parser
-
-public class Measure
-{
-    public double scale = 1; // 0 ~ 1
-    public List<TimeLine> timelines;
-
-
-}
-
-public class Chart
-{
-    public string title;
-    public string genre;
-    public string artist;
-
-    public double bpm;
-
-    public List<TimeLine> timelines = new List<TimeLine>();
-}
 
 public class BMSParser : Parser
 {
@@ -135,7 +54,7 @@ public class BMSParser : Parser
         
      }
     */
-    const int TEMP_KEY = 8;
+    private const int TEMP_KEY = 8;
     public const int NO_WAV = -1;
     public const int LANE_AUTOPLAY = 1;
     public const int SECTION_RATE = 2;
@@ -154,13 +73,20 @@ public class BMSParser : Parser
     public const int P2_LONG_KEY_BASE = 6 * 36 + 1;
     public const int P1_MINE_KEY_BASE = 13 * 36 + 1;
     public const int P2_MINE_KEY_BASE = 14 * 36 + 1;
-    private static readonly int[] CHANNELASSIGN_BEAT5 = { 0, 1, 2, 3, 4, 5, -1, -1, -1, 6, 7, 8, 9, 10, 11, -1, -1, -1 };
-    private static readonly int[] CHANNELASSIGN_BEAT7 = { 0, 1, 2, 3, 4, 7, -1, 5, 6, 8, 9, 10, 11, 12, 15, -1, 13, 14 };
-    private static readonly int[] CHANNELASSIGN_POPN = { 0, 1, 2, 3, 4, -1, -1, -1, -1, -1, 5, 6, 7, 8, -1, -1, -1, -1 };
 
     public const int SCROLL = 1020;
-    private int lnobj;
-    public static readonly int[] NOTE_CHANNELS = {
+
+    private static readonly int[] CHANNELASSIGN_BEAT5 =
+        { 0, 1, 2, 3, 4, 5, -1, -1, -1, 6, 7, 8, 9, 10, 11, -1, -1, -1 };
+
+    private static readonly int[] CHANNELASSIGN_BEAT7 =
+        { 0, 1, 2, 3, 4, 7, -1, 5, 6, 8, 9, 10, 11, 12, 15, -1, 13, 14 };
+
+    private static readonly int[] CHANNELASSIGN_POPN =
+        { 0, 1, 2, 3, 4, -1, -1, -1, -1, -1, 5, 6, 7, 8, -1, -1, -1, -1 };
+
+    public static readonly int[] NOTE_CHANNELS =
+    {
         P1_KEY_BASE,
         P2_KEY_BASE,
         P1_INVISIBLE_KEY_BASE,
@@ -170,131 +96,40 @@ public class BMSParser : Parser
         P1_MINE_KEY_BASE,
         P2_MINE_KEY_BASE
     };
-    public string[] wavTable = new string[36 * 36];
-    private double[] bpmTable = new double[36 * 36];
+
+    private readonly double[] bpmTable = new double[36 * 36];
+
+    public Chart chart = new();
+    private int lnobj;
 
     private Dictionary<int, Dictionary<double, TimeLine>> sections;
-
-    public Chart chart = new Chart();
-
-    private int decodeBase36(string str)
-    {
-        int result = 0;
-        foreach (char c in str)
-        {
-            result *= 36;
-            if (c >= '0' && c <= '9')
-            {
-                result += c - '0';
-            }
-            else if (c >= 'A' && c <= 'Z')
-            {
-                result += c - 'A' + 10;
-            }
-            else if (c >= 'a' && c <= 'z')
-            {
-                result += c - 'a' + 10;
-            }
-            else
-            {
-                return -1; // invalid character
-            }
-        }
-        return result;
-    }
-
-    private void ParseHeader(string cmd, string xx, string value)
-    {
-        Debug.Log($"cmd: {cmd}, xx: {xx} isXXNull: {xx == null}, value: {value}");
-        switch (cmd)
-        {
-            case "PLAYER":
-                break;
-            case "GENRE":
-                chart.genre = value;
-                break;
-            case "TITLE":
-                chart.title = value;
-                break;
-            case "ARTIST":
-                chart.artist = value;
-                break;
-            case "BPM":
-                if (value == null)
-                {
-                    throw new System.Exception("invalid BPM value");
-                }
-                if (xx == null || xx.Length == 0)
-                { // chart initial bpm
-                    chart.bpm = double.Parse(value);
-                }
-                else
-                {
-                    bpmTable[decodeBase36(xx)] = double.Parse(value);
-                }
-
-                break;
-            case "MIDIFILE":
-                break;
-            case "VIDEOFILE":
-                break;
-            case "PLAYLEVEL":
-                break;
-            case "RANK":
-                break;
-            case "TOTAL":
-                break;
-            case "VOLWAV":
-                break;
-            case "STAGEFILE":
-                break;
-            case "WAV":
-                if (xx == null || value == null)
-                {
-                    Debug.LogWarning("WAV command requires two arguments");
-                    break;
-                }
-                wavTable[decodeBase36(xx)] = value;
-                break;
-            case "BMP":
-                break;
-            case "RANDOM":
-                break;
-            case "IF":
-                break;
-            case "ENDIF":
-                break;
-            case "LNOBJ":
-                lnobj = decodeBase36(value);
-                break;
-            // case "ExtChr":
-            // break;
-            default:
-                Debug.LogWarning("Unknown command: " + cmd);
-                break;
-        }
-    }
+    public string[] wavTable = new string[36 * 36];
 
     public void Parse(string path)
     {
-
         // <measure number, (channel, data)>
         Dictionary<int, List<(int channel, string data)>> measures = new();
 
         // read line by line
-        System.IO.StreamReader br;
-        if(Application.platform == RuntimePlatform.Android)
+        StreamReader br;
+        if (Application.platform == RuntimePlatform.Android)
         {
             Debug.Log("Android");
             //use UnityWebRequest to read file
-            var www = UnityEngine.Networking.UnityWebRequest.Get(path);
+            var www = UnityWebRequest.Get(path);
             www.SendWebRequest();
-            while (!www.isDone) { }
-            byte[] bytes = www.downloadHandler.data;
-            br = new System.IO.StreamReader(new System.IO.MemoryStream(bytes));
-        } else {
-            br = new System.IO.StreamReader(path);
+            while (!www.isDone)
+            {
+            }
+
+            var bytes = www.downloadHandler.data;
+            br = new StreamReader(new MemoryStream(bytes));
         }
+        else
+        {
+            br = new StreamReader(path);
+        }
+
         string line;
         while ((line = br.ReadLine()) != null)
         {
@@ -303,13 +138,10 @@ public class BMSParser : Parser
             var match = measureRegex.Match(line);
             if (match.Success)
             {
-                int measure = int.Parse(match.Groups[1].Value);
-                int channel = decodeBase36(match.Groups[2].Value);
+                var measure = int.Parse(match.Groups[1].Value);
+                var channel = decodeBase36(match.Groups[2].Value);
                 var value = match.Groups[3].Value;
-                if (!measures.ContainsKey(measure))
-                {
-                    measures.Add(measure, new List<(int channel, string data)>());
-                }
+                if (!measures.ContainsKey(measure)) measures.Add(measure, new List<(int channel, string data)>());
                 measures[measure].Add((channel, value));
                 // TODO: 마디별로 한 번에 처리하도록 수정
                 // ParseMeasure(int.Parse(measure), decodeBase36(channel, value);
@@ -330,7 +162,8 @@ public class BMSParser : Parser
                     {
                         var cmd = match.Groups[1].Value;
                         var xx = match.Groups.Count > 3 ? match.Groups[2].Value : null;
-                        var value = match.Groups.Count == 3 ? match.Groups[2].Value : (match.Groups.Count > 3 ? match.Groups[3].Value : null);
+                        var value = match.Groups.Count == 3 ? match.Groups[2].Value :
+                            match.Groups.Count > 3 ? match.Groups[3].Value : null;
 
                         ParseHeader(cmd, xx, value);
                     }
@@ -338,25 +171,23 @@ public class BMSParser : Parser
             }
         }
 
-        int lastMeasure = measures.Keys.Max();
+        var lastMeasure = measures.Keys.Max();
 
-        Timing timePassed = 0;
+        ulong timePassed = 0;
         double totalMeasureScale = 0;
-        double bpm = chart.bpm;
-        Note[] lastNote = new Note[10];
+        var bpm = chart.bpm;
+        var lastNote = new Note[10];
 
-        for (int i = 0; i <= lastMeasure; i++)
-        {
+        for (var i = 0; i <= lastMeasure; i++)
             if (measures.ContainsKey(i))
             {
                 // gcd (int, int)
-
                 Measure measure = new();
                 SortedDictionary<double, TimeLine> timelines = new();
 
-                foreach ((int channel, string data) in measures[i])
+                foreach ((var channel, var data) in measures[i])
                 {
-                    int _channel = channel;
+                    var _channel = channel;
                     if (channel == SECTION_RATE)
                     {
                         measure.scale = double.Parse(data);
@@ -364,7 +195,7 @@ public class BMSParser : Parser
                         continue;
                     }
 
-                    int laneNumber = 0;
+                    var laneNumber = 0;
                     if (channel >= P1_KEY_BASE && channel < P1_KEY_BASE + 9)
                     {
                         laneNumber = CHANNELASSIGN_BEAT7[channel - P1_KEY_BASE];
@@ -408,18 +239,15 @@ public class BMSParser : Parser
 
                     if (laneNumber == -1) continue;
 
-                    for (int j = 0; j < data.Length / 2; j++)
+                    for (var j = 0; j < data.Length / 2; j++)
                     {
-                        int g = gcd(j, data.Length / 2);
-                        double position = ((double)(j / g)) / (data.Length / 2 / g);
-                        string val = data.Substring(j * 2, 2);
+                        var g = gcd(j, data.Length / 2);
+                        var position = (double)(j / g) / (data.Length / 2 / g);
+                        var val = data.Substring(j * 2, 2);
 
-                        if (!timelines.ContainsKey(position))
-                        {
-                            timelines.Add(position, new TimeLine(TEMP_KEY));
-                        }
+                        if (!timelines.ContainsKey(position)) timelines.Add(position, new TimeLine(TEMP_KEY));
 
-                        TimeLine timeline = timelines[position];
+                        var timeline = timelines[position];
                         switch (_channel)
                         {
                             case LANE_AUTOPLAY:
@@ -427,7 +255,7 @@ public class BMSParser : Parser
                                     timeline.AddBackgroundNote(new Note(decodeBase36(val)));
                                 break;
                             case BPM_CHANGE:
-                                timeline.bpm = System.Convert.ToInt32(val, 16);
+                                timeline.bpm = Convert.ToInt32(val, 16);
                                 Debug.Log($"BPM_CHANGE: {timeline.bpm}, on measure {i}");
                                 timeline.bpmChange = true;
                                 break;
@@ -445,13 +273,13 @@ public class BMSParser : Parser
                             case STOP:
                                 break;
                             case P1_KEY_BASE:
-                                int ch = decodeBase36(val);
+                                var ch = decodeBase36(val);
                                 if (ch == lnobj)
                                 {
                                     if (lastNote[laneNumber] != null)
                                     {
-                                        TimeLine lastTimeline = lastNote[laneNumber].timeline;
-                                        LongNote ln = new LongNote(lastNote[laneNumber].wav);
+                                        var lastTimeline = lastNote[laneNumber].timeline;
+                                        var ln = new LongNote(lastNote[laneNumber].wav);
                                         ln.end = new LongNote(NO_WAV);
                                         lastTimeline.SetNote(
                                             laneNumber, ln
@@ -460,14 +288,14 @@ public class BMSParser : Parser
                                             laneNumber, ln.end
                                         );
                                     }
-
                                 }
                                 else if (ch != 0)
                                 {
-                                    Note note = new Note(ch);
+                                    var note = new Note(ch);
                                     timeline.SetNote(laneNumber, note);
                                     lastNote[laneNumber] = note;
                                 }
+
                                 break;
                             case P1_INVISIBLE_KEY_BASE:
 
@@ -478,41 +306,115 @@ public class BMSParser : Parser
                                 break;
                             case P1_MINE_KEY_BASE:
                                 break;
-
-
-
                         }
-
                     }
-
-
-
                 }
 
 
-                double lastPosition = 0.0;
-                foreach ((double position, TimeLine timeline) in timelines)
+                var lastPosition = 0.0;
+                foreach ((var position, var timeline) in timelines)
                 {
                     if (timeline.bpmChange) bpm = timeline.bpm;
                     // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
-                    double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm;
+                    var interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm;
 
 
-                    timePassed += (Timing)interval;
+                    timePassed += (ulong)interval;
                     timeline.timing = timePassed;
                     lastPosition = position;
                     chart.timelines.Add(timeline);
                 }
 
-                timePassed += (Timing)(240 * 1000 * 1000 * (1 - lastPosition) * measure.scale / bpm);
+                timePassed += (ulong)(240 * 1000 * 1000 * (1 - lastPosition) * measure.scale / bpm);
 
                 totalMeasureScale += measure.scale;
-
             }
+    }
 
+    private int decodeBase36(string str)
+    {
+        var result = 0;
+        foreach (var c in str)
+        {
+            result *= 36;
+            if (c >= '0' && c <= '9')
+                result += c - '0';
+            else if (c >= 'A' && c <= 'Z')
+                result += c - 'A' + 10;
+            else if (c >= 'a' && c <= 'z')
+                result += c - 'a' + 10;
+            else
+                return -1; // invalid character
         }
 
+        return result;
+    }
 
+    private void ParseHeader(string cmd, string xx, string value)
+    {
+        Debug.Log($"cmd: {cmd}, xx: {xx} isXXNull: {xx == null}, value: {value}");
+        switch (cmd)
+        {
+            case "PLAYER":
+                break;
+            case "GENRE":
+                chart.genre = value;
+                break;
+            case "TITLE":
+                chart.title = value;
+                break;
+            case "ARTIST":
+                chart.artist = value;
+                break;
+            case "BPM":
+                if (value == null) throw new Exception("invalid BPM value");
+                if (xx == null || xx.Length == 0)
+                    // chart initial bpm
+                    chart.bpm = double.Parse(value);
+                else
+                    bpmTable[decodeBase36(xx)] = double.Parse(value);
+
+                break;
+            case "MIDIFILE":
+                break;
+            case "VIDEOFILE":
+                break;
+            case "PLAYLEVEL":
+                break;
+            case "RANK":
+                break;
+            case "TOTAL":
+                break;
+            case "VOLWAV":
+                break;
+            case "STAGEFILE":
+                break;
+            case "WAV":
+                if (xx == null || value == null)
+                {
+                    Debug.LogWarning("WAV command requires two arguments");
+                    break;
+                }
+
+                wavTable[decodeBase36(xx)] = value;
+                break;
+            case "BMP":
+                break;
+            case "RANDOM":
+                break;
+            case "IF":
+                break;
+            case "ENDIF":
+                break;
+            case "LNOBJ":
+                lnobj = decodeBase36(value);
+                break;
+            // case "ExtChr":
+            // break;
+            default:
+                Debug.LogWarning("Unknown command: " + cmd);
+                break;
+        }
     }
 
     private int gcd(int a, int b)
