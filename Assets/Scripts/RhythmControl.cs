@@ -64,6 +64,10 @@ public class RhythmControl : MonoBehaviour
     // Update is called once per frame
     private void Update()
     {
+        channelGroup.getDSPClock(out var dspClock, out var parentClock);
+        system.getSoftwareFormat(out var sampleRate, out _, out _);
+        var time = (double) dspClock / sampleRate * 1000000 - (double) startDSPClock / sampleRate * 1000000;
+        renderer.Draw((long)time);
     }
 
     private void FixedUpdate()
@@ -199,6 +203,7 @@ public class RhythmControl : MonoBehaviour
         Debug.Log($"Mixer blockSize        = {ms} ms");
         Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
         Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
+        renderer.Init(parser.GetChart());
     }
 #if UNITY_EDITOR
     private void OnPauseStateChanged(PauseState state)

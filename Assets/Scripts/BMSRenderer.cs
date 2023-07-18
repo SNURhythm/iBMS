@@ -13,11 +13,25 @@ public class BMSRenderer: MonoBehaviour
     private readonly float judgeLineHeight = 1.0f;
     private readonly Dictionary<Note, GameObject> noteObjects = new Dictionary<Note, GameObject>();
     private GameObject notePrefab;
-    void Init(Chart chart)
+    
+    private int passedTimelineCount = 0;
+    private int passedMeasureCount = 0;
+    private List<LongNote> orphanLongNotes = new List<LongNote>();
+    private double currentBpm = 0;
+    private double startBpm = 0;
+    private long lastDrawTime = 0;
+    private long deltaTime = 0;
+    private long greenNumber = 300;
+    private long whiteNumber = 0;
+    private float hiSpeed = 1;
+    private float spawnPosition = 500;
+    public void Init(Chart chart)
     {
         this.chart = chart;
+        this.currentBpm = chart.Bpm;
+        this.startBpm = chart.Bpm;
     }
-    private Note testnote = new Note(0);
+
     private void Start()
     {
         notePrefab = new GameObject();
@@ -29,41 +43,60 @@ public class BMSRenderer: MonoBehaviour
         notePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
         notePrefab.name = "Note";
 
-        testnote.Lane = 0;
-        
-        DrawNote(testnote, 1);
-        var testnote2 = new Note(0);
-        testnote2.Lane = 1;
-        
-        DrawNote(testnote2, 2);
-        // after 1 sec, move testnote
-        Invoke(nameof(MoveTestNote), 1);
     }
-    void MoveTestNote()
-    {
 
-        DrawNote(testnote, 2);
-    }
-    
 
-    void Draw(ulong currentTime)
+    public void Draw(long currentTime)
     {
-        var measures = chart.Measures;
-        foreach (var measure in measures)
+        deltaTime = currentTime - lastDrawTime;
+        foreach (var orphanLongNote in orphanLongNotes)
         {
+            DrawLongNote(orphanLongNote, orphanLongNote.Timeline.Timing - currentTime, orphanLongNote.Tail.Timeline.Timing - currentTime, true);
+        }
+        var measures = chart.Measures;
+        for (int i=passedMeasureCount; i<measures.Count; i++)
+        {
+            var isFirstMeasure = i == passedMeasureCount;
+            var measure = measures[i];
             DrawMeasureLine(measure.Timing - currentTime);
-            foreach (var timeLine in measure.Timelines)
+            for (int j=isFirstMeasure?passedTimelineCount:0; j<measure.Timelines.Count; j++)
             {
+                var timeLine = measure.Timelines[j];
                 var offset = timeLine.Timing - currentTime;
-
+                if (offset <= 0)
+                {
+                    if (timeLine.BpmChange)
+                    {
+                        currentBpm = timeLine.Bpm;
+                    }
+                }
                 if (IsOverUpperBound(offset)) break;
+                var shouldDestroy = IsUnderLowerBound(offset);
+                if (shouldDestroy && isFirstMeasure)
+                {
+                    passedTimelineCount++;
+                    Debug.Log($"Destroying timeline, passedTimelineCount: {passedTimelineCount}, total timeline count: {measure.Timelines.Count}");
+                }
+
                 foreach (var note in timeLine.Notes)
                 {
                     if (note == null) continue;
-                    if (isUnderLowerBound(offset))
+                    if (shouldDestroy)
                     {
+                        if (note is LongNote ln)
+                        {
+                            if (ln.IsTail())
+                            {
+                                if (orphanLongNotes.Contains(ln.Head)) orphanLongNotes.Remove(ln.Head);
+                            }
+                            else
+                            {
+                                // add orphan tail
+                                orphanLongNotes.Add(ln);
+                            }
+                        }
                         DestroyNote(note);
-                        return;
+                        continue;
                     }
                     if (note is LongNote longNote)
                     {
@@ -86,7 +119,14 @@ public class BMSRenderer: MonoBehaviour
                 // }
 
             }
+            if(passedTimelineCount == measure.Timelines.Count && isFirstMeasure)
+            {
+                passedTimelineCount = 0;
+                passedMeasureCount++;
+                Debug.Log($"Skipping measure since all {measure.Timelines.Count} timelines are passed, passedMeasureCount: {passedMeasureCount}");
+            }
         }
+        lastDrawTime = currentTime;
     }
 
     void DestroyNote(Note note)
@@ -95,42 +135,75 @@ public class BMSRenderer: MonoBehaviour
         noteObjects.Remove(note);
 
     }
-    void DrawMeasureLine(ulong offset)
+    void DrawMeasureLine(long offset)
     {
         var top = OffsetToTop(offset);
         
     }
-    void DrawNote(Note note, ulong offset)
+    void DrawNote(Note note, long offset)
     {
         if(note.IsPlayed) return;
         var left = LaneToLeft(note.Lane);
-        var top = OffsetToTop(offset);
 
         // draw note
         if(noteObjects.ContainsKey(note))
         {
             var noteObject = noteObjects[note];
-            noteObject.transform.position = new Vector3(left, top, 0);
+            noteObject.transform.position = new Vector3(left, OffsetToTop(offset), 0);
             noteObject.SetActive(true);
         }
         else
         {
             var noteObject = Instantiate(notePrefab);
-            noteObject.transform.position = new Vector3(left, top, 0);
+            noteObject.transform.position = new Vector3(left, OffsetToTop(offset), 0);
             noteObjects.Add(note, noteObject);
             noteObject.SetActive(true);
         }
-
-        
-        
-
-        
     }
 
-    void DrawLongNote(LongNote head, ulong startOffset, ulong endOffset)
+    void DrawLongNote(LongNote head, long startOffset, long endOffset, bool tailOnly = false)
     {
         if(head.Tail.IsPlayed) return;
+        var tail = head.Tail;
         var left = LaneToLeft(head.Lane);
+        var startTop = OffsetToTop(startOffset);
+        var endTop = OffsetToTop(endOffset);
+        var height = endTop - startTop;
+        // draw start note, end note, and draw a bar between them
+        // we should make tail note have a height, not head, since head will be disappeared before tail is played
+        if (!tailOnly)
+        {
+            if (noteObjects.ContainsKey(head))
+            {
+                var noteObject = noteObjects[head];
+                noteObject.transform.position = new Vector3(left, startTop, 0);
+                noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
+                noteObject.SetActive(true);
+            }
+            else
+            {
+                var noteObject = Instantiate(notePrefab);
+                noteObject.transform.position = new Vector3(left, startTop, 0);
+                noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
+                noteObjects.Add(head, noteObject);
+                noteObject.SetActive(true);
+            }
+        }
+
+        if(noteObjects.ContainsKey(tail))
+        {
+            var noteObject = noteObjects[tail];
+            noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
+            noteObject.SetActive(true);
+        }
+        else
+        {
+            var noteObject = Instantiate(notePrefab);
+            noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
+            noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
+            noteObjects.Add(tail, noteObject);
+            noteObject.SetActive(true);
+        }
     }
 
     float LaneToLeft(int lane)
@@ -138,20 +211,20 @@ public class BMSRenderer: MonoBehaviour
         return lane * (laneWidth + laneMargin);
     }
 
-    float OffsetToTop(ulong offset)
+    float OffsetToTop(long offset)
     {
         // TODO: Implement
-        return judgeLinePosition + offset;
+        return (float)(judgeLinePosition + offset*0.00007f);
     }
-    bool IsOverUpperBound(ulong offset)
+    
+    
+    bool IsOverUpperBound(long offset)
     {
-        // TODO: Implement
-        return true;
+        return OffsetToTop(offset) > spawnPosition;
     }
 
-    bool isUnderLowerBound(ulong offset)
+    bool IsUnderLowerBound(long offset)
     {
-        // TODO: Implement
-        return true;
+        return offset < -300000; // TODO: account for late-miss window
     }
 }

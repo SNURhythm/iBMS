@@ -11,7 +11,7 @@ public class TimeLine
     public double PauseLength = 0;
     public double Scroll = 1.0;
 
-    public ulong Timing;
+    public long Timing;
 
     public TimeLine(int lanes)
     {
