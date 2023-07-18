@@ -7,7 +7,7 @@ public class BMSRenderer: MonoBehaviour
 {
     private Chart chart;
     private readonly float laneWidth = 3.0f;
-    private readonly float laneMargin = 0.1f;
+    private readonly float laneMargin = 0f;
     private readonly float noteHeight = 1.0f;
     private readonly float judgeLinePosition = 0.0f;
     private readonly float judgeLineHeight = 1.0f;
@@ -41,6 +41,7 @@ public class BMSRenderer: MonoBehaviour
         notePrefab.AddComponent<SpriteRenderer>();
         notePrefab.GetComponent<SpriteRenderer>().color = Color.red;
         notePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
+        notePrefab.GetComponent<SpriteRenderer>().sortingLayerName = "Note";
         notePrefab.name = "Note";
 
     }
