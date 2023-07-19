@@ -76,7 +76,7 @@ public class BMSParser : IParser
 
     private readonly Chart chart = new();
     private readonly string[] wavTable = new string[36 * 36];
-    private int lnobj;
+    private int lnobj = -1;
 
     private Dictionary<int, Dictionary<double, TimeLine>> sections;
 
@@ -237,10 +237,14 @@ public class BMSParser : IParser
 
                                 break;
                             case Channel.BpmChange:
-                                timeline.Bpm = Convert.ToInt32(val, 16);
-                                Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
-                                timeline.BpmChange = true;
-                                currentBpm = timeline.Bpm;
+                                if (val != "00")
+                                {
+                                    timeline.Bpm = Convert.ToInt32(val, 16);
+                                    Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
+                                    timeline.BpmChange = true;
+                                    currentBpm = timeline.Bpm;
+                                }
+
                                 break;
                             case Channel.BgaPlay:
                                 break;
@@ -249,10 +253,14 @@ public class BMSParser : IParser
                             case Channel.LayerPlay:
                                 break;
                             case Channel.BpmChangeExtend:
-                                timeline.Bpm = bpmTable[DecodeBase36(val)];
-                                Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}");
-                                timeline.BpmChange = true;
-                                currentBpm = timeline.Bpm;
+                                if (val != "00")
+                                {
+                                    timeline.Bpm = bpmTable[DecodeBase36(val)];
+                                    Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}");
+                                    timeline.BpmChange = true;
+                                    currentBpm = timeline.Bpm;
+                                }
+
                                 break;
                             case Channel.Stop:
                                 break;
