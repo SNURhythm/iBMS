@@ -6,12 +6,14 @@ public class TimeLine
     public readonly List<Note> BackgroundNotes;
     public double Bpm = 0.0;
     public bool BpmChange = false;
+    public bool BpmChangeApplied = false;
     public readonly List<Note> InvisibleNotes;
     public readonly List<Note> Notes;
     public double PauseLength = 0;
     public double Scroll = 1.0;
 
     public long Timing;
+    public double Pos;
 
     public TimeLine(int lanes)
     {

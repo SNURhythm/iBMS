@@ -309,11 +309,11 @@ public class BMSParser : IParser
                     // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
                     var interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / bpm;
 
-
                     timePassed += (long)interval;
                     timeline.Timing = timePassed;
-                    lastPosition = position;
                     measure.Timelines.Add(timeline);
+
+                    lastPosition = position;
                 }
 
                 timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / bpm);
