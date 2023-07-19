@@ -12,7 +12,8 @@ public class BMSRenderer: MonoBehaviour
     private readonly float judgeLinePosition = 0.0f;
     private readonly float judgeLineHeight = 1.0f;
     private readonly Dictionary<Note, GameObject> noteObjects = new Dictionary<Note, GameObject>();
-    private GameObject notePrefab;
+    private readonly Dictionary<Measure, GameObject> measureLineObjects = new Dictionary<Measure, GameObject>();
+    private GameObject squarePrefab;
     
     private int passedTimelineCount = 0;
     private int passedMeasureCount = 0;
@@ -26,9 +27,10 @@ public class BMSRenderer: MonoBehaviour
     private long whiteNumber = 0;
     private float hiSpeed = 1;
     private float spawnPosition = 500;
+    private float despawnPosition = -30;
 
     private Color[] noteColors =
-        { Color.white, Color.blue, Color.white, Color.blue, Color.white, Color.blue, Color.white, Color.red }; // TODO: make customizable
+        { Color.white, Color.cyan, Color.white, Color.cyan, Color.white, Color.cyan, Color.white, Color.red }; // TODO: make customizable
 
     public void Init(Chart chart)
     {
@@ -58,15 +60,15 @@ public class BMSRenderer: MonoBehaviour
 
     private void Start()
     {
-        notePrefab = new GameObject();
-        notePrefab.SetActive(false);
-        notePrefab.transform.position = new Vector3(0, 0, 0);
-        notePrefab.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
-        notePrefab.AddComponent<SpriteRenderer>();
-        notePrefab.GetComponent<SpriteRenderer>().color = Color.red;
-        notePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
-        notePrefab.GetComponent<SpriteRenderer>().sortingLayerName = "Note";
-        notePrefab.name = "Note";
+        squarePrefab = new GameObject();
+        squarePrefab.SetActive(false);
+        squarePrefab.transform.position = new Vector3(0, 0, 0);
+        squarePrefab.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
+        squarePrefab.AddComponent<SpriteRenderer>();
+        squarePrefab.GetComponent<SpriteRenderer>().color = Color.red;
+        squarePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
+        squarePrefab.GetComponent<SpriteRenderer>().sortingLayerName = "Note";
+        squarePrefab.name = "Note";
 
     }
 
@@ -81,7 +83,7 @@ public class BMSRenderer: MonoBehaviour
         {
             var isFirstMeasure = i == passedMeasureCount;
             var measure = measures[i];
-            DrawMeasureLine(measure.Pos - currentTime);
+            
 
             for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
@@ -95,6 +97,7 @@ public class BMSRenderer: MonoBehaviour
                     offset = timeline.Pos - currentPos;
                     timeline.BpmChangeApplied = true;
                 }
+                if(j==0)DrawMeasureLine(measure, measure.Pos - currentPos);
 
                 if (IsOverUpperBound(offset)) break;
                 var shouldDestroy = IsUnderLowerBound(offset);
@@ -148,6 +151,7 @@ public class BMSRenderer: MonoBehaviour
             {
                 passedTimelineCount = 0;
                 passedMeasureCount++;
+                DestroyMeasureLine(measure);
                 Debug.Log($"Skipping measure since all {measure.Timelines.Count} timelines are passed, passedMeasureCount: {passedMeasureCount}");
             }
         }
@@ -169,9 +173,37 @@ public class BMSRenderer: MonoBehaviour
         }
 
     }
-    void DrawMeasureLine(double offset)
+    
+    void DestroyMeasureLine(Measure measure)
+    {
+        if (measureLineObjects.ContainsKey(measure))
+        {
+            Destroy(measureLineObjects[measure]);
+            measureLineObjects.Remove(measure);
+        }
+    }
+    void DrawMeasureLine(Measure measure, double offset)
     {
         var top = OffsetToTop(offset);
+
+        if (measureLineObjects.ContainsKey(measure))
+        {
+            measureLineObjects[measure].transform.position = new Vector3(laneWidth * 7/2, top-noteHeight/2, 0);
+            measureLineObjects[measure].SetActive(true);
+        }
+        else
+        {
+            var measureLineObject = Instantiate(squarePrefab);
+            measureLineObject.transform.position = new Vector3(laneWidth * 7/2, top-noteHeight/2, 0);
+            measureLineObject.transform.localScale = new Vector3(laneWidth * 8, 0.2f, 0);
+            var spriteRenderer = measureLineObject.GetComponent<SpriteRenderer>();
+            spriteRenderer.color = new Color(0.5f, 0.5f, 0.5f, 0.5f);
+
+            spriteRenderer.sortingLayerName = "MeasureLine";
+            measureLineObject.name = "MeasureLine";
+            measureLineObjects.Add(measure, measureLineObject);
+            measureLineObject.SetActive(true);
+        }
         
     }
     void DrawNote(Note note, double offset)
@@ -188,7 +220,7 @@ public class BMSRenderer: MonoBehaviour
         }
         else
         {
-            var noteObject = Instantiate(notePrefab);
+            var noteObject = Instantiate(squarePrefab);
             noteObject.transform.position = new Vector3(left, OffsetToTop(offset), 0);
             noteObject.GetComponent<SpriteRenderer>().color = noteColors[note.Lane];
             noteObjects.Add(note, noteObject);
@@ -215,7 +247,7 @@ public class BMSRenderer: MonoBehaviour
             }
             else
             {
-                var noteObject = Instantiate(notePrefab);
+                var noteObject = Instantiate(squarePrefab);
                 noteObject.transform.position = new Vector3(left, startTop, 0);
                 noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
                 noteObject.GetComponent<SpriteRenderer>().color = noteColors[head.Lane];
@@ -231,7 +263,7 @@ public class BMSRenderer: MonoBehaviour
         }
         else
         {
-            var noteObject = Instantiate(notePrefab);
+            var noteObject = Instantiate(squarePrefab);
             noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
             noteObject.GetComponent<SpriteRenderer>().color = noteColors[tail.Lane];
@@ -259,6 +291,6 @@ public class BMSRenderer: MonoBehaviour
 
     bool IsUnderLowerBound(double offset)
     {
-        return offset < -300000; // TODO: account for late-miss window
+        return OffsetToTop(offset) < despawnPosition;
     }
 }

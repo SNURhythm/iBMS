@@ -152,7 +152,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_BackGroundColor: {r: 0, g: 0, b: 0, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -233,10 +233,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57a3fdc9fff494f2285ca7aad1acd32e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  fontSize: 30
-  color: {r: 0, g: 0, b: 0, a: 1}
-  width: 0
-  height: 0
+  fontSize: 50
 --- !u!1 &716382793
 GameObject:
   m_ObjectHideFlags: 0
@@ -318,7 +315,7 @@ GameObject:
   - component: {fileID: 1923171087}
   - component: {fileID: 1923171086}
   m_Layer: 0
-  m_Name: Square
+  m_Name: JudgeLine
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -366,7 +363,7 @@ SpriteRenderer:
   m_SortingLayer: 1
   m_SortingOrder: 0
   m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 0.39215687}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0

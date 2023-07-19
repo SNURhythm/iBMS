@@ -80,14 +80,14 @@ public class RhythmControl : MonoBehaviour
 
         // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
-         Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
+        // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
         var availableChannels = MaxChannels - playingChannels;
         if (availableChannels > 0 && soundQueue.Count > 0)
             for (var i = 0; i < availableChannels; i++)
             {
                 if (soundQueue.Count == 0) break;
                 var (startDSP, wav) = soundQueue.Dequeue();
-                Debug.Log("Playing queued sound: " + wav);
+                // Debug.Log("Playing queued sound: " + wav);
                 system.playSound(wavSounds[wav], channelGroup, true, out var channel);
                 channel.setDelay(startDSP, 0);
                 channel.setPaused(false);
@@ -153,8 +153,8 @@ public class RhythmControl : MonoBehaviour
 
     private void LoadGame()
     {
-        var basePath = "/testbms/take003/";
-        parser.Parse(Application.streamingAssetsPath + basePath+"_take_7A.bms");
+        var basePath = "/testbms/Dreadnought/";
+        parser.Parse(Application.streamingAssetsPath + basePath+"_Dreadnought_fragarach.bms");
 
         // set defaultDecodeBufferSize
         var advancedSettings = new ADVANCEDSETTINGS

@@ -323,6 +323,12 @@ public class BMSParser : IParser
 
                     lastPosition = position;
                 }
+                if(measure.Timelines.Count == 0)
+                {
+                    var timeline = new TimeLine(TempKey);
+                    timeline.Timing = timePassed;
+                    measure.Timelines.Add(timeline);
+                }
 
                 timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / bpm);
             }
