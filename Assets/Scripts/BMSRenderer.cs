@@ -27,6 +27,9 @@ public class BMSRenderer: MonoBehaviour
     private float hiSpeed = 1;
     private float spawnPosition = 500;
 
+    private Color[] noteColors =
+        { Color.white, Color.blue, Color.white, Color.blue, Color.white, Color.blue, Color.white, Color.red }; // TODO: make customizable
+
     public void Init(Chart chart)
     {
         this.chart = chart;
@@ -159,8 +162,11 @@ public class BMSRenderer: MonoBehaviour
 
     void DestroyNote(Note note)
     {
-        Destroy(noteObjects[note]);
-        noteObjects.Remove(note);
+        if (noteObjects.ContainsKey(note))
+        {
+            Destroy(noteObjects[note]);
+            noteObjects.Remove(note);
+        }
 
     }
     void DrawMeasureLine(double offset)
@@ -184,6 +190,7 @@ public class BMSRenderer: MonoBehaviour
         {
             var noteObject = Instantiate(notePrefab);
             noteObject.transform.position = new Vector3(left, OffsetToTop(offset), 0);
+            noteObject.GetComponent<SpriteRenderer>().color = noteColors[note.Lane];
             noteObjects.Add(note, noteObject);
             noteObject.SetActive(true);
         }
@@ -205,14 +212,13 @@ public class BMSRenderer: MonoBehaviour
             {
                 var noteObject = noteObjects[head];
                 noteObject.transform.position = new Vector3(left, startTop, 0);
-                noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
-                noteObject.SetActive(true);
             }
             else
             {
                 var noteObject = Instantiate(notePrefab);
                 noteObject.transform.position = new Vector3(left, startTop, 0);
                 noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
+                noteObject.GetComponent<SpriteRenderer>().color = noteColors[head.Lane];
                 noteObjects.Add(head, noteObject);
                 noteObject.SetActive(true);
             }
@@ -222,13 +228,13 @@ public class BMSRenderer: MonoBehaviour
         {
             var noteObject = noteObjects[tail];
             noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
-            noteObject.SetActive(true);
         }
         else
         {
             var noteObject = Instantiate(notePrefab);
             noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
+            noteObject.GetComponent<SpriteRenderer>().color = noteColors[tail.Lane];
             noteObjects.Add(tail, noteObject);
             noteObject.SetActive(true);
         }

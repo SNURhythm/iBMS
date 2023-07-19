@@ -67,7 +67,8 @@ public class RhythmControl : MonoBehaviour
         channelGroup.getDSPClock(out var dspClock, out var parentClock);
         system.getSoftwareFormat(out var sampleRate, out _, out _);
         var time = (double) dspClock / sampleRate * 1000000 - (double) startDSPClock / sampleRate * 1000000;
-        renderer.Draw((long)time);
+        if(isPlaying)
+            renderer.Draw((long)time);
     }
 
     private void FixedUpdate()
@@ -79,13 +80,14 @@ public class RhythmControl : MonoBehaviour
 
         // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
-        // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
+         Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
         var availableChannels = MaxChannels - playingChannels;
         if (availableChannels > 0 && soundQueue.Count > 0)
             for (var i = 0; i < availableChannels; i++)
             {
                 if (soundQueue.Count == 0) break;
                 var (startDSP, wav) = soundQueue.Dequeue();
+                Debug.Log("Playing queued sound: " + wav);
                 system.playSound(wavSounds[wav], channelGroup, true, out var channel);
                 channel.setDelay(startDSP, 0);
                 channel.setPaused(false);
@@ -151,7 +153,8 @@ public class RhythmControl : MonoBehaviour
 
     private void LoadGame()
     {
-        parser.Parse(Application.streamingAssetsPath + "/testbms/PUPA[SPH].bml");
+        var basePath = "/testbms/take003/";
+        parser.Parse(Application.streamingAssetsPath + basePath+"_take_7A.bms");
 
         // set defaultDecodeBufferSize
         var advancedSettings = new ADVANCEDSETTINGS
@@ -168,22 +171,11 @@ public class RhythmControl : MonoBehaviour
         for (var i = 0; i < 36 * 36; i++)
         {
             if (parser.GetWavFileName(i) == null) continue;
-            byte[] wavBytes;
-            if (Application.platform == RuntimePlatform.Android)
+            byte[] wavBytes = GetWavBytes(Application.streamingAssetsPath + basePath + parser.GetWavFileName(i));
+            if (wavBytes == null)
             {
-                var www = UnityWebRequest.Get(Application.streamingAssetsPath + "/testbms/" + parser.GetWavFileName(i));
-                www.SendWebRequest();
-                while (!www.isDone)
-                {
-                }
-
-                wavBytes = www.downloadHandler.data;
+                Debug.LogError("wavBytes is null:" + parser.GetWavFileName(i));
             }
-            else
-            {
-                wavBytes = File.ReadAllBytes(Application.streamingAssetsPath + "/testbms/" + parser.GetWavFileName(i));
-            }
-
             var createSoundExInfo = new CREATESOUNDEXINFO
             {
                 length = (uint)wavBytes.Length,
@@ -204,6 +196,55 @@ public class RhythmControl : MonoBehaviour
         Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
         Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
         renderer.Init(parser.GetChart());
+    }
+
+    private byte[] AndroidTryGetWav(string path)
+    {
+
+        var www = UnityWebRequest.Get(path);
+        www.SendWebRequest();
+        while (!www.isDone)
+        {
+        }
+
+        if(www.isNetworkError || www.isHttpError) return null;
+        return www.downloadHandler.data;
+
+    }
+    private byte[] GetWavBytes(string path)
+    {
+        // we can't trust given extension, so we should try all supported extensions (mp3, ogg, wav, flac)
+        var splitIndex = path.LastIndexOf('.');
+        var pathWithoutExtension = path.Substring(0, splitIndex);
+        var extensions = new[] { ".mp3", ".ogg", ".wav", ".flac" };
+
+        if (Application.platform == RuntimePlatform.Android)
+        {
+            var temp = AndroidTryGetWav(path);
+            if (temp != null) return temp;
+            foreach (var extension in extensions)
+            {
+                var newPath = pathWithoutExtension + extension;
+                temp = AndroidTryGetWav(newPath);
+                if (temp != null) return temp;
+            }
+        }
+
+        if (File.Exists(path))
+        {
+            return File.ReadAllBytes(path);
+        }
+
+        foreach (var extension in extensions)
+        {
+            var newPath = pathWithoutExtension + extension;
+            if (File.Exists(newPath))
+            {
+                return File.ReadAllBytes(newPath);
+            }
+        }
+
+        return null;
     }
 #if UNITY_EDITOR
     private void OnPauseStateChanged(PauseState state)
