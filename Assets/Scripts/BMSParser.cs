@@ -77,6 +77,7 @@ public class BMSParser : IParser
     private readonly Chart chart = new();
     private readonly string[] wavTable = new string[36 * 36];
     private int lnobj = -1;
+    private int lntype = 1;
 
     private Dictionary<int, Dictionary<double, TimeLine>> sections;
 
@@ -152,8 +153,8 @@ public class BMSParser : IParser
         long timePassed = 0;
         var bpm = chart.Bpm;
         var currentBpm = bpm;
-        var lastNote = new Note[10];
-
+        var lastNote = new Note[TempKey];
+        var lnStart = new LongNote[TempKey];
         for (var i = 0; i <= lastMeasure; i++)
             if (measures.ContainsKey(i))
             {
@@ -237,13 +238,13 @@ public class BMSParser : IParser
 
                                 break;
                             case Channel.BpmChange:
-                                if (val != "00")
-                                {
-                                    timeline.Bpm = Convert.ToInt32(val, 16);
-                                    Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
-                                    timeline.BpmChange = true;
-                                    currentBpm = timeline.Bpm;
-                                }
+                                if (val == "00") break;
+                                
+                                timeline.Bpm = Convert.ToInt32(val, 16);
+                                Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
+                                timeline.BpmChange = true;
+                                currentBpm = timeline.Bpm;
+                                
 
                                 break;
                             case Channel.BgaPlay:
@@ -253,13 +254,13 @@ public class BMSParser : IParser
                             case Channel.LayerPlay:
                                 break;
                             case Channel.BpmChangeExtend:
-                                if (val != "00")
-                                {
-                                    timeline.Bpm = bpmTable[DecodeBase36(val)];
-                                    Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}");
-                                    timeline.BpmChange = true;
-                                    currentBpm = timeline.Bpm;
-                                }
+                                if (val == "00") break;
+                                
+                                timeline.Bpm = bpmTable[DecodeBase36(val)];
+                                Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}");
+                                timeline.BpmChange = true;
+                                currentBpm = timeline.Bpm;
+                                
 
                                 break;
                             case Channel.Stop:
@@ -300,6 +301,30 @@ public class BMSParser : IParser
 
                                 break;
                             case Channel.P1LongKeyBase:
+                                if (val == "00") break;
+                                if (lntype == 1)
+                                {
+                                    if (lnStart[laneNumber] == null)
+                                    {
+                                        var ln = new LongNote(DecodeBase36(val));
+                                        ln.Bpm = currentBpm;
+                                        timeline.SetNote(
+                                            laneNumber, ln
+                                        );
+                                        lnStart[laneNumber] = ln;
+                                    }
+                                    else
+                                    {
+                                        var tail = new LongNote(NoWav);
+                                        tail.Bpm = currentBpm;
+                                        tail.Head = lnStart[laneNumber];
+                                        lnStart[laneNumber].Tail = tail;
+                                        timeline.SetNote(
+                                            laneNumber, tail
+                                        );
+                                    }
+                                }
+
                                 break;
                             case Channel.P1MineKeyBase:
                                 break;
@@ -454,6 +479,9 @@ public class BMSParser : IParser
                 break;
             case "LNOBJ":
                 lnobj = DecodeBase36(value);
+                break;
+            case "LNTYPE":
+                lntype = int.Parse(value);
                 break;
             // case "ExtChr":
             // break;

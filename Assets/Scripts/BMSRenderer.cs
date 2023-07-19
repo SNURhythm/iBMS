@@ -30,7 +30,7 @@ public class BMSRenderer: MonoBehaviour
     private float despawnPosition = -30;
 
     private Color[] noteColors =
-        { Color.white, Color.cyan, Color.white, Color.cyan, Color.white, Color.cyan, Color.white, Color.red }; // TODO: make customizable
+        { Color.white, Color.blue, Color.white, Color.blue, Color.white, Color.blue, Color.white, Color.red }; // TODO: make customizable
 
     public void Init(Chart chart)
     {
@@ -97,9 +97,10 @@ public class BMSRenderer: MonoBehaviour
                     offset = timeline.Pos - currentPos;
                     timeline.BpmChangeApplied = true;
                 }
-                if(j==0)DrawMeasureLine(measure, measure.Pos - currentPos);
-
+                
                 if (IsOverUpperBound(offset)) break;
+                
+                if (j == 0) DrawMeasureLine(measure, measure.Pos - currentPos);
                 var shouldDestroy = IsUnderLowerBound(offset);
                 if (shouldDestroy && isFirstMeasure)
                 {
