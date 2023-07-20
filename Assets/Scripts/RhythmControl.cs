@@ -133,9 +133,10 @@ public class RhythmControl : MonoBehaviour
 
     private int autoplayedTimelines = 0;
     private int autoplayedMeasures = 0;
-    private long testRandomOffsetRange = 250000;
+    private long testRandomOffsetRange = 0;
     private float randomOffset = -1;
     private int combo = 0;
+    private Judgement latestJudgement;
     private void AutoPlay(long currentTime)
     {
         if(randomOffset < 0)
@@ -186,13 +187,15 @@ public class RhythmControl : MonoBehaviour
                             }
                         }
                         Debug.Log($"Judgement: {judgeResult.Judgement}, Diff: {judgeResult.Diff}");
+                        latestJudgement = judgeResult.Judgement;
                         if (judgeResult.ShouldComboBreak)
                         {
                             combo = 0;
                         }
                         else
                         {
-                            combo++;
+                            if(note is not LongNote or LongNote { IsTail: true })
+                                combo++;
                         }
                         Debug.Log($"Combo: {combo}");
                     }
@@ -280,8 +283,8 @@ public class RhythmControl : MonoBehaviour
 
     private void LoadGame()
     {
-        var basePath = "/testbms/PUPA/";
-        parser.Parse(Application.streamingAssetsPath + basePath+"PUPA[SPH].bml");
+        var basePath = "/testbms/Dreadnought/";
+        parser.Parse(Application.streamingAssetsPath + basePath+"_Dreadnought_fragarach.bms");
 
         // set defaultDecodeBufferSize
         var advancedSettings = new ADVANCEDSETTINGS
@@ -424,5 +427,32 @@ public class RhythmControl : MonoBehaviour
             using var sw = File.AppendText(filePath);
             sw.WriteLine(message);
         }
+    }
+    
+
+    private void OnGUI()
+    {
+        var style = new GUIStyle
+        {
+            fontSize = 120,
+            normal =
+            {
+                textColor = Color.white
+            }
+        };
+        GUILayout.BeginArea(new Rect(0, 0, Screen.width, Screen.height));
+        GUILayout.FlexibleSpace();
+        GUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
+        if(combo>0)
+            GUILayout.Label($"{combo} {latestJudgement}",style);
+
+        GUILayout.FlexibleSpace();
+        GUILayout.EndHorizontal();
+        GUILayout.FlexibleSpace();
+        GUILayout.EndArea();
+
+
+
     }
 }
