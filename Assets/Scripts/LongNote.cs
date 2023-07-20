@@ -1,13 +1,14 @@
 ﻿public class LongNote : Note
 {
-    public LongNote End;
+    public LongNote Tail;
+    public LongNote Head;
 
     public LongNote(int wav) : base(wav)
     {
     }
 
-    public bool IsEnd()
+    public bool IsTail()
     {
-        return End == null;
+        return Tail == null;
     }
 }
