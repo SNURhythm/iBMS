@@ -1,84 +1,300 @@
-using System.Collections;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
+using FMOD;
+using FMODUnity;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.InputSystem.EnhancedTouch;
+using UnityEngine.Networking;
+using Debug = UnityEngine.Debug;
+
 public class RhythmControl : MonoBehaviour
 {
-    private FMOD.Sound _music;
-    private FMOD.Channel _channel;
-    private FMOD.ChannelGroup _channelGroup;
+    private const int MaxChannels = 1024;
+
+    private readonly Queue<(ulong dspclock, int wav)> soundQueue = new();
+
+    private readonly Sound[] wavSounds = new Sound[36 * 36];
+
+    private ChannelGroup channelGroup;
+
+    private bool isPlaying;
 #if UNITY_EDITOR
-    private PauseState _lastPauseState = PauseState.Unpaused;
+    private PauseState lastPauseState = PauseState.Unpaused;
+
 #endif
-    // Start is called before the first frame update
-    void Start()
+    private Sound music;
+    private BMSParser parser;
+    private BMSRenderer renderer;
+
+    private ulong startDSPClock;
+    private FMOD.System system;
+
+    private void Awake()
     {
-        LoadGame();
+        Application.targetFrameRate = 120;
+        parser = new BMSParser();
+    }
+
+    // Start is called before the first frame update
+    private void Start()
+    {
 #if UNITY_EDITOR
         EditorApplication.pauseStateChanged += OnPauseStateChanged;
+        lastPauseState = EditorApplication.isPaused ? PauseState.Paused : PauseState.Unpaused;
 #endif
+        RuntimeManager.StudioSystem.release();
+        RuntimeManager.CoreSystem.release();
+        Factory.System_Create(out system); // TODO: make system singleton
+        system.setSoftwareChannels(256);
+        // set buffer size
+        // var result = _system.setDSPBufferSize(256, 2);
+        // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
+        system.init(MaxChannels, INITFLAGS.NORMAL, IntPtr.Zero);
+
+        renderer = GetComponent<BMSRenderer>();
+        LoadGame();
+        Debug.Log("Load Complete");
+        channelGroup.setPaused(true);
+        Invoke(nameof(StartMusic), 3.0f);
     }
 
     // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        
+        channelGroup.getDSPClock(out var dspClock, out var parentClock);
+        system.getSoftwareFormat(out var sampleRate, out _, out _);
+        var time = (double) dspClock / sampleRate * 1000000 - (double) startDSPClock / sampleRate * 1000000;
+        if(isPlaying)
+            renderer.Draw((long)time);
+    }
+
+    private void FixedUpdate()
+    {
+        // channelGroup.getDSPClock(out var dspclock, out var parentclock);
+        system.update();
+        // system.getSoftwareFormat(out var samplerate, out _, out _);
+        // WriteTxt(Application.streamingAssetsPath + "/log.log", "FixedUpdate: " + (double)dspclock / samplerate * 1000 + ", " + Time.time);
+
+        // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
+        system.getChannelsPlaying(out var playingChannels, out var realChannels);
+        // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
+        var availableChannels = MaxChannels - playingChannels;
+        if (availableChannels > 0 && soundQueue.Count > 0)
+            for (var i = 0; i < availableChannels; i++)
+            {
+                if (soundQueue.Count == 0) break;
+                var (startDSP, wav) = soundQueue.Dequeue();
+                // Debug.Log("Playing queued sound: " + wav);
+                system.playSound(wavSounds[wav], channelGroup, true, out var channel);
+                channel.setDelay(startDSP, 0);
+                channel.setPaused(false);
+            }
+    }
+
+    private void OnDisable()
+    {
+        system.release();
+    }
+
+    private void ScheduleSound(double timing, int wav)
+    {
+        system.getChannelsPlaying(out var playingChannels, out var realChannels);
+        var startDSP = startDSPClock + MsToDSP(timing / 1000);
+        if (playingChannels >= MaxChannels)
+        {
+            soundQueue.Enqueue((startDSP, wav)); // Too many channels playing, queue the sound
+            return;
+        }
+
+        system.playSound(wavSounds[wav], channelGroup, true, out var channel);
+        // this.wav[wav].getLength(out uint length, FMOD.TIMEUNIT.MS);
+        // var lengthDSP = MsToDSP((double)length);
+
+        // _channel.setMode(FMOD.MODE.VIRTUAL_PLAYFROMSTART);
+        channel.setDelay(startDSP, 0);
+        channel.setPaused(false);
+    }
+
+    private void StartMusic()
+    {
+        if (isPlaying) return;
+        channelGroup.getDSPClock(out startDSPClock, out _);
+        channelGroup.setPaused(false);
+        Debug.Log("Play");
+        parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
+        {
+            timeline.Notes.ForEach(note =>
+            {
+                if (note == null || note.Wav == BMSParser.NoWav) return;
+                // Debug.Log(note.wav + "wav");
+                // Debug.Log("NoteTiming: " + timeline.timing / 1000);
+                ScheduleSound(timeline.Timing, note.Wav);
+            });
+            timeline.BackgroundNotes.ForEach(note =>
+            {
+                if (note == null || note.Wav == BMSParser.NoWav) return;
+                // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
+
+                ScheduleSound(timeline.Timing, note.Wav);
+            });
+            timeline.InvisibleNotes.ForEach(note =>
+            {
+                if (note == null || note.Wav == BMSParser.NoWav) return;
+                // Debug.Log("BGNoteTiming: " + timeline.timing / 1000);
+
+                ScheduleSound(timeline.Timing, note.Wav);
+            });
+        }));
+        isPlaying = true;
     }
 
     private void LoadGame()
     {
-        FMOD.RESULT result;
+        var basePath = "/testbms/Dreadnought/";
+        parser.Parse(Application.streamingAssetsPath + basePath+"_Dreadnought_fragarach.bms");
 
-        // set buffer size
-        result = FMODUnity.RuntimeManager.CoreSystem.setDSPBufferSize(256, 1);
-        if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
-
-        FMODUnity.RuntimeManager.CoreSystem.init(256, FMOD.INITFLAGS.NORMAL, IntPtr.Zero);
         // set defaultDecodeBufferSize
-        var advancedSettings = new FMOD.ADVANCEDSETTINGS
+        var advancedSettings = new ADVANCEDSETTINGS
         {
             defaultDecodeBufferSize = 32
         };
-        result = FMODUnity.RuntimeManager.CoreSystem.setAdvancedSettings(ref advancedSettings);
-        if (result != FMOD.RESULT.OK) Debug.Log($"setAdvancedSettings failed. {result}");
+        var result = system.setAdvancedSettings(ref advancedSettings);
+        if (result != RESULT.OK) Debug.Log($"setAdvancedSettings failed. {result}");
 
-        uint blocksize;
-        int numblocks;
-        float ms;
-        int frequency;
-        result = FMODUnity.RuntimeManager.CoreSystem.getDSPBufferSize(out blocksize, out numblocks);
-        result = FMODUnity.RuntimeManager.CoreSystem.getSoftwareFormat(out frequency, out _, out _);
-        FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out _channelGroup);
-        _channel = new FMOD.Channel();
-        _channel.setChannelGroup(_channelGroup);
-        result = FMODUnity.RuntimeManager.CoreSystem.createSound(Application.streamingAssetsPath+"/testbms/bgm_1.wav",
-            FMOD.MODE.CREATESAMPLE | FMOD.MODE.ACCURATETIME, out _music);
-        if (result != FMOD.RESULT.OK) Debug.Log($"createSound failed. {result}");
-        FMODUnity.RuntimeManager.CoreSystem.playSound(_music, _channelGroup, false, out _channel);
-#if UNITY_EDITOR
-        if(_lastPauseState == PauseState.Paused) _channel.setPaused(true);
-#endif
-        ms = (float) blocksize * 1000.0f / (float) frequency;
+        result = system.getDSPBufferSize(out var blockSize, out var numBlocks);
+        result = system.getSoftwareFormat(out var frequency, out _, out _);
+        system.getMasterChannelGroup(out channelGroup);
 
-        Debug.Log($"Mixer blocksize        = {ms} ms");
-        Debug.Log($"Mixer Total buffersize = {ms * numblocks} ms");
-        Debug.Log($"Mixer Average Latency  = {ms * ((float) numblocks - 1.5f)} ms");
+        for (var i = 0; i < 36 * 36; i++)
+        {
+            if (parser.GetWavFileName(i) == null) continue;
+            byte[] wavBytes = GetWavBytes(Application.streamingAssetsPath + basePath + parser.GetWavFileName(i));
+            if (wavBytes == null)
+            {
+                Debug.LogError("wavBytes is null:" + parser.GetWavFileName(i));
+            }
+            var createSoundExInfo = new CREATESOUNDEXINFO
+            {
+                length = (uint)wavBytes.Length,
+                cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
+            };
+            result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+                ref createSoundExInfo, out wavSounds[i]);
+            wavSounds[i].setLoopCount(0);
+            // _system.playSound(wav[i], _channelGroup, true, out channel);
+
+            if (result != RESULT.OK) Debug.Log($"createSound failed wav{i}. {result}");
+        }
+
+
+        var ms = blockSize * 1000.0f / frequency;
+
+        Debug.Log($"Mixer blockSize        = {ms} ms");
+        Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
+        Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
+        renderer.Init(parser.GetChart());
+    }
+
+    private byte[] AndroidTryGetWav(string path)
+    {
+
+        var www = UnityWebRequest.Get(path);
+        www.SendWebRequest();
+        while (!www.isDone)
+        {
+        }
+
+        if(www.isNetworkError || www.isHttpError) return null;
+        return www.downloadHandler.data;
+
+    }
+    private byte[] GetWavBytes(string path)
+    {
+        // we can't trust given extension, so we should try all supported extensions (mp3, ogg, wav, flac)
+        var splitIndex = path.LastIndexOf('.');
+        var pathWithoutExtension = path.Substring(0, splitIndex);
+        var extensions = new[] { ".mp3", ".ogg", ".wav", ".flac" };
+
+        if (Application.platform == RuntimePlatform.Android)
+        {
+            var temp = AndroidTryGetWav(path);
+            if (temp != null) return temp;
+            foreach (var extension in extensions)
+            {
+                var newPath = pathWithoutExtension + extension;
+                temp = AndroidTryGetWav(newPath);
+                if (temp != null) return temp;
+            }
+        }
+
+        if (File.Exists(path))
+        {
+            return File.ReadAllBytes(path);
+        }
+
+        foreach (var extension in extensions)
+        {
+            var newPath = pathWithoutExtension + extension;
+            if (File.Exists(newPath))
+            {
+                return File.ReadAllBytes(newPath);
+            }
+        }
+
+        return null;
     }
 #if UNITY_EDITOR
     private void OnPauseStateChanged(PauseState state)
     {
         Debug.Log($"OnApplicationPause: {state}");
-        _lastPauseState = state;
+        lastPauseState = state;
         if (state == PauseState.Paused)
-        {
-            _channel.setPaused(true);
-        }
+            channelGroup.setPaused(true);
         else
-        {
-            _channel.setPaused(false);
-        }
+            channelGroup.setPaused(false);
     }
 #endif
+    private ulong DSPToMs(ulong dspClock)
+    {
+        system.getSoftwareFormat(out var sampleRate, out _, out _);
+        return (ulong)((double)dspClock / sampleRate * 1000);
+    }
+
+    private ulong MsToDSP(double ms)
+    {
+        system.getSoftwareFormat(out var sampleRate, out _, out _);
+        return (ulong)(ms * sampleRate / 1000);
+    }
+
+    public void FingerMove(Finger obj)
+    {
+        channelGroup.getDSPClock(out var dspClock, out var parentClock);
+        system.getSoftwareFormat(out var sampleRate, out _, out _);
+        // WriteTxt(Application.streamingAssetsPath + "/log.log", "Finger Move on clock: " + (double)parentclock / samplerate * 1000 + ", " + Time.time);
+    }
+
+    private void WriteTxt(string filePath, string message)
+    {
+        var directoryInfo = new DirectoryInfo(Path.GetDirectoryName(filePath));
+
+        if (!directoryInfo.Exists) directoryInfo.Create();
+
+        // This text is added only once to the file.
+        if (!File.Exists(filePath))
+            // Create a file to write to.
+        {
+            using var sw = File.CreateText(filePath);
+            sw.WriteLine(message);
+        }
+        else
+            // This text is always added, making the file longer over time
+            // if it is not deleted.
+        {
+            using var sw = File.AppendText(filePath);
+            sw.WriteLine(message);
+        }
+    }
 }
