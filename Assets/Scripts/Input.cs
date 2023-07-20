@@ -15,7 +15,7 @@ public class Input : MonoBehaviour
         // set polling frequency to 1000Hz
         InputSystem.pollingFrequency = 1000;
         // set fixed update rate to 1000Hz
-        Time.fixedDeltaTime = 1.0f / 120.0f;
+        Time.fixedDeltaTime = 1.0f / 1000.0f;
     }
 
     private void Start()

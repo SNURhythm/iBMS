@@ -453,6 +453,7 @@ public class BMSParser : IParser
             case "PLAYLEVEL":
                 break;
             case "RANK":
+                chart.Rank = int.Parse(value);
                 break;
             case "TOTAL":
                 break;
@@ -483,6 +484,7 @@ public class BMSParser : IParser
             case "LNTYPE":
                 lntype = int.Parse(value);
                 break;
+
             // case "ExtChr":
             // break;
             default:

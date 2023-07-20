@@ -28,10 +28,13 @@ public class RhythmControl : MonoBehaviour
     private Sound music;
     private BMSParser parser;
     private BMSRenderer renderer;
+    private Judge judge;
 
     private ulong startDSPClock;
     private FMOD.System system;
-
+    private int sameDspClockCount = 0;
+    private long lastDspTime = 0;
+    private long maxCompensatedDspTime = 0;
     private void Awake()
     {
         Application.targetFrameRate = 120;
@@ -61,14 +64,29 @@ public class RhythmControl : MonoBehaviour
         Invoke(nameof(StartMusic), 3.0f);
     }
 
-    // Update is called once per frame
-    private void Update()
+    private long GetCurrentDspTimeMicro()
     {
         channelGroup.getDSPClock(out var dspClock, out var parentClock);
         system.getSoftwareFormat(out var sampleRate, out _, out _);
-        var time = (double) dspClock / sampleRate * 1000000 - (double) startDSPClock / sampleRate * 1000000;
-        if(isPlaying)
-            renderer.Draw((long)time);
+        return (long)((double)dspClock / sampleRate * 1000000 - (double)startDSPClock / sampleRate * 1000000);
+    }
+    
+    private long GetCompensatedDspTimeMicro()
+    {
+        
+        return GetCurrentDspTimeMicro() + sameDspClockCount * (long)(Time.fixedDeltaTime * 1000000);
+    }
+    // Update is called once per frame
+    private void Update()
+    {
+
+        if (isPlaying)
+        {
+            var currentDspTime = GetCurrentDspTimeMicro();
+            maxCompensatedDspTime = Math.Max(maxCompensatedDspTime, GetCompensatedDspTimeMicro());
+            var time = Math.Max(currentDspTime, maxCompensatedDspTime);
+            renderer.Draw(time);
+        }
     }
 
     private void FixedUpdate()
@@ -83,6 +101,7 @@ public class RhythmControl : MonoBehaviour
         // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
         var availableChannels = MaxChannels - playingChannels;
         if (availableChannels > 0 && soundQueue.Count > 0)
+        {
             for (var i = 0; i < availableChannels; i++)
             {
                 if (soundQueue.Count == 0) break;
@@ -92,6 +111,114 @@ public class RhythmControl : MonoBehaviour
                 channel.setDelay(startDSP, 0);
                 channel.setPaused(false);
             }
+        }
+
+        if (isPlaying)
+        {
+            var currentDspTime = GetCurrentDspTimeMicro();
+            if(lastDspTime == currentDspTime)
+            {
+                sameDspClockCount++;
+            }
+            else
+            {
+                sameDspClockCount = 0;
+                lastDspTime = currentDspTime;
+            }
+            AutoPlay(GetCompensatedDspTimeMicro());
+        }
+            
+
+    }
+
+    private int autoplayedTimelines = 0;
+    private int autoplayedMeasures = 0;
+    private long testRandomOffsetRange = 250000;
+    private float randomOffset = -1;
+    private int combo = 0;
+    private void AutoPlay(long currentTime)
+    {
+        if(randomOffset < 0)
+        {
+            randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
+        }
+        var measures = parser.GetChart().Measures;
+        for(int i=autoplayedMeasures; i<measures.Count; i++)
+        {
+            var measure = measures[i];
+            for(int j=autoplayedTimelines; j<measure.Timelines.Count; j++)
+            {
+                
+                var timeline = measure.Timelines[j];
+                // if (i==autoplayedMeasures && j==autoplayedTimelines) Debug.Log($"offset: {randomOffset}, timing: {timeline.Timing}, current: {currentTime}");
+                if(Math.Abs(timeline.Timing - currentTime) < randomOffset || timeline.Timing - currentTime < -testRandomOffsetRange)
+                {
+                    randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
+                    // mimic press
+                    foreach (var note in timeline.Notes)
+                    {
+                        if (note == null) continue;
+      
+                        var judgeResult = judge.JudgeNow(note, currentTime);
+                        if (judgeResult.IsNotePlayed)
+                        {
+                            if (note is LongNote longNote)
+                            {
+                                if (longNote.IsTail)
+                                {
+                                    longNote.Release(currentTime);
+                                }
+                                else
+                                {
+                                    longNote.Press(currentTime);
+                                }
+                            }
+                            else
+                            {
+                                note.Press(currentTime);
+                            }
+                        }
+                        else
+                        {
+                            if (note is LongNote { IsTail: true } longNote)
+                            {
+                                longNote.MissRelease(currentTime);
+                            }
+                        }
+                        Debug.Log($"Judgement: {judgeResult.Judgement}, Diff: {judgeResult.Diff}");
+                        if (judgeResult.ShouldComboBreak)
+                        {
+                            combo = 0;
+                        }
+                        else
+                        {
+                            combo++;
+                        }
+                        Debug.Log($"Combo: {combo}");
+                    }
+
+                    autoplayedTimelines = j + 1;
+                    // Debug.Log("Autoplayed: " + autoplayedTimelines);
+                    if(autoplayedTimelines == measure.Timelines.Count)
+                    {
+                        autoplayedTimelines = 0;
+                        autoplayedMeasures = i + 1;
+                    }
+                    i=measures.Count;
+                    break;
+                }
+            }
+        }
+    }
+    
+    private void OnPressLane(int lane)
+    {
+        Debug.Log("OnPressLane: " + lane);
+    }
+    
+    private void OnReleaseLane(int lane)
+    {
+        Debug.Log("OnReleaseLane: " + lane);
     }
 
     private void OnDisable()
@@ -153,8 +280,8 @@ public class RhythmControl : MonoBehaviour
 
     private void LoadGame()
     {
-        var basePath = "/testbms/Dreadnought/";
-        parser.Parse(Application.streamingAssetsPath + basePath+"_Dreadnought_fragarach.bms");
+        var basePath = "/testbms/PUPA/";
+        parser.Parse(Application.streamingAssetsPath + basePath+"PUPA[SPH].bml");
 
         // set defaultDecodeBufferSize
         var advancedSettings = new ADVANCEDSETTINGS
@@ -196,6 +323,7 @@ public class RhythmControl : MonoBehaviour
         Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
         Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
         renderer.Init(parser.GetChart());
+        judge = new Judge(parser.GetChart().Rank);
     }
 
     private byte[] AndroidTryGetWav(string path)

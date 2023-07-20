@@ -9,4 +9,5 @@ public class Chart
     
     public readonly List<Measure> Measures = new();
     public string Title;
+    public int Rank = 3;
 }
