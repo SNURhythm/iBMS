@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
 using UnityEngine.Networking;
+using UnityEngine.Video;
 using Debug = UnityEngine.Debug;
 
 public class RhythmControl : MonoBehaviour
@@ -17,6 +18,7 @@ public class RhythmControl : MonoBehaviour
     private readonly Queue<(ulong dspclock, int wav)> soundQueue = new();
 
     private readonly Sound[] wavSounds = new Sound[36 * 36];
+    
 
     private ChannelGroup channelGroup;
 
@@ -28,6 +30,7 @@ public class RhythmControl : MonoBehaviour
     private Sound music;
     private BMSParser parser;
     private BMSRenderer renderer;
+    private BGAPlayer bgaPlayer = new();
     private Judge judge;
 
     private ulong startDSPClock;
@@ -61,7 +64,6 @@ public class RhythmControl : MonoBehaviour
         LoadGame();
         Debug.Log("Load Complete");
         channelGroup.setPaused(true);
-        Invoke(nameof(StartMusic), 3.0f);
     }
 
     private long GetCurrentDspTimeMicro()
@@ -126,6 +128,7 @@ public class RhythmControl : MonoBehaviour
                 lastDspTime = currentDspTime;
             }
             AutoPlay(GetCompensatedDspTimeMicro());
+           // bgaPlayer.Update(GetCompensatedDspTimeMicro());
         }
             
 
@@ -244,13 +247,21 @@ public class RhythmControl : MonoBehaviour
         // var lengthDSP = MsToDSP((double)length);
 
         // _channel.setMode(FMOD.MODE.VIRTUAL_PLAYFROMSTART);
+        if (startDSP == 0) startDSP = 1;
         channel.setDelay(startDSP, 0);
         channel.setPaused(false);
     }
-
+    
     private void StartMusic()
     {
         if (isPlaying) return;
+        parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
+        {
+            if (timeline.BgaBase != -1)
+            {
+                bgaPlayer.Schedule(timeline.BgaBase, timeline.Timing);
+            }
+        }));
         channelGroup.getDSPClock(out startDSPClock, out _);
         channelGroup.setPaused(false);
         Debug.Log("Play");
@@ -266,14 +277,13 @@ public class RhythmControl : MonoBehaviour
             timeline.BackgroundNotes.ForEach(note =>
             {
                 if (note == null || note.Wav == BMSParser.NoWav) return;
-                // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
-
+               // Debug.Log("BgnWav: " + note.Wav+" Timing: "+timeline.Timing);
                 ScheduleSound(timeline.Timing, note.Wav);
             });
             timeline.InvisibleNotes.ForEach(note =>
             {
                 if (note == null || note.Wav == BMSParser.NoWav) return;
-                // Debug.Log("BGNoteTiming: " + timeline.timing / 1000);
+                // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
 
                 ScheduleSound(timeline.Timing, note.Wav);
             });
@@ -283,8 +293,8 @@ public class RhythmControl : MonoBehaviour
 
     private void LoadGame()
     {
-        var basePath = "/testbms/[xi] FREEDOM DiVE/";
-        parser.Parse(Application.streamingAssetsPath + basePath+"_another.bme");
+        var basePath = "/testbms/DataErr0r/";
+        parser.Parse(Application.streamingAssetsPath + basePath+"_dataerr0r_zoi.bms");
 
         // set defaultDecodeBufferSize
         var advancedSettings = new ADVANCEDSETTINGS
@@ -300,23 +310,45 @@ public class RhythmControl : MonoBehaviour
 
         for (var i = 0; i < 36 * 36; i++)
         {
-            if (parser.GetWavFileName(i) == null) continue;
-            byte[] wavBytes = GetWavBytes(Application.streamingAssetsPath + basePath + parser.GetWavFileName(i));
-            if (wavBytes == null)
+            var wavFileName = parser.GetWavFileName(i);
+            var bmpFileName = parser.GetBmpFileName(i);
+            if (wavFileName != null)
             {
-                Debug.LogError("wavBytes is null:" + parser.GetWavFileName(i));
-            }
-            var createSoundExInfo = new CREATESOUNDEXINFO
-            {
-                length = (uint)wavBytes.Length,
-                cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
-            };
-            result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
-                ref createSoundExInfo, out wavSounds[i]);
-            wavSounds[i].setLoopCount(0);
-            // _system.playSound(wav[i], _channelGroup, true, out channel);
+                byte[] wavBytes = GetWavBytes(Application.streamingAssetsPath + basePath + wavFileName);
+                if (wavBytes == null)
+                {
+                    Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(i));
+                }
+                else
+                {
+                    var createSoundExInfo = new CREATESOUNDEXINFO
+                    {
+                        length = (uint)wavBytes.Length,
+                        cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
+                    };
+                    result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+                        ref createSoundExInfo, out wavSounds[i]);
+                    wavSounds[i].setLoopCount(0);
+                    // _system.playSound(wav[i], _channelGroup, true, out channel);
 
-            if (result != RESULT.OK) Debug.Log($"createSound failed wav{i}. {result}");
+                    if (result != RESULT.OK) Debug.Log($"createSound failed wav{i}. {result}");
+                }
+            }
+
+            if (bmpFileName != null)
+            {
+                bgaPlayer.Load(i, Application.streamingAssetsPath + basePath + bmpFileName);
+            }
+        }
+        
+
+        if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
+        {
+            bgaPlayer.OnAllPlayersLoaded += (sender, args) => StartMusic();
+        }
+        else
+        {
+            Invoke(nameof(StartMusic),2.0f);
         }
 
 
@@ -383,9 +415,15 @@ public class RhythmControl : MonoBehaviour
         Debug.Log($"OnApplicationPause: {state}");
         lastPauseState = state;
         if (state == PauseState.Paused)
+        {
             channelGroup.setPaused(true);
+            bgaPlayer.PauseAll();;
+        }
         else
+        {
             channelGroup.setPaused(false);
+            bgaPlayer.ResumeAll(GetCompensatedDspTimeMicro());
+        }
     }
 #endif
     private ulong DSPToMs(ulong dspClock)

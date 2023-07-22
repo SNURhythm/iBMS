@@ -9,6 +9,9 @@ public class TimeLine
     public bool BpmChangeApplied = false;
     public readonly List<Note> InvisibleNotes;
     public readonly List<Note> Notes;
+    public int BgaBase = -1;
+    public int BgaLayer = -1;
+    public int BgaPoor = -1;
     public double PauseLength = 0;
     public double Scroll = 1.0;
 
