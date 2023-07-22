@@ -5,6 +5,8 @@ using UnityEngine;
 
 public class BMSRenderer: MonoBehaviour
 {
+    public GameObject LaneArea;
+    public GameObject NoteArea;
     private Chart chart;
     private readonly float laneWidth = 3.0f;
     private readonly float laneMargin = 0f;
@@ -14,10 +16,10 @@ public class BMSRenderer: MonoBehaviour
 
     private float judgeLineBottom => judgeLinePosition - judgeLineHeight / 2;
 
-    private readonly Dictionary<Note, GameObject> noteObjects = new Dictionary<Note, GameObject>();
-    private readonly Dictionary<Measure, GameObject> measureLineObjects = new Dictionary<Measure, GameObject>();
+    private readonly Dictionary<Note, GameObject> noteObjects = new();
+    private readonly Dictionary<Measure, GameObject> measureLineObjects = new();
     private GameObject squarePrefab;
-    
+    private Dictionary<GameObject, Queue<GameObject>> instancePool = new();
     private int passedTimelineCount = 0;
     private int passedMeasureCount = 0;
     private List<LongNote> orphanLongNotes = new List<LongNote>();
@@ -70,8 +72,8 @@ public class BMSRenderer: MonoBehaviour
         squarePrefab.AddComponent<SpriteRenderer>();
         squarePrefab.GetComponent<SpriteRenderer>().color = Color.red;
         squarePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
-        squarePrefab.GetComponent<SpriteRenderer>().sortingLayerName = "Note";
-        squarePrefab.name = "Note";
+        squarePrefab.name = "Square";
+        spawnPosition = NoteArea.transform.localScale.y;
 
     }
 
@@ -174,17 +176,39 @@ public class BMSRenderer: MonoBehaviour
 
     void DestroyNote(Note note)
     {
-        Destroy(noteObjects[note]);
+        RecycleInstance(squarePrefab,noteObjects[note]);
         noteObjects.Remove(note);
     }
-    
+
+    void RecycleInstance(GameObject prefab, GameObject instance)
+    {
+        instance.SetActive(false);
+        if (!instancePool.ContainsKey(squarePrefab))
+        {
+            instancePool.Add(squarePrefab, new Queue<GameObject>());
+        }
+        instancePool[squarePrefab].Enqueue(instance);
+    }
+    GameObject GetInstance(GameObject prefab)
+    {
+        if(instancePool.ContainsKey(prefab) && instancePool[prefab].Count > 0)
+        {
+            var instance = instancePool[prefab].Dequeue();
+            instance.SetActive(true);
+            return instance;
+        }
+        else
+        {
+            var instance = Instantiate(prefab, LaneArea.transform);
+            instance.SetActive(true);
+            return instance;
+        }
+    }
     void DestroyMeasureLine(Measure measure)
     {
-        if (measureLineObjects.ContainsKey(measure))
-        {
-            Destroy(measureLineObjects[measure]);
-            measureLineObjects.Remove(measure);
-        }
+        RecycleInstance(squarePrefab, measureLineObjects[measure]);
+        measureLineObjects.Remove(measure);
+        
     }
     void DrawMeasureLine(Measure measure, double offset)
     {
@@ -192,13 +216,13 @@ public class BMSRenderer: MonoBehaviour
 
         if (measureLineObjects.ContainsKey(measure))
         {
-            measureLineObjects[measure].transform.position = new Vector3(laneWidth * 7/2, top-noteHeight/2, 0);
+            measureLineObjects[measure].transform.localPosition = new Vector3(laneWidth * 7/2, top-noteHeight/2, 0);
             measureLineObjects[measure].SetActive(true);
         }
         else
         {
-            var measureLineObject = Instantiate(squarePrefab);
-            measureLineObject.transform.position = new Vector3(laneWidth * 7/2, top-noteHeight/2, 0);
+            var measureLineObject = GetInstance(squarePrefab);
+            measureLineObject.transform.localPosition = new Vector3(laneWidth * 7/2, top-noteHeight/2, 0);
             measureLineObject.transform.localScale = new Vector3(laneWidth * 8, 0.2f, 0);
             var spriteRenderer = measureLineObject.GetComponent<SpriteRenderer>();
             spriteRenderer.color = new Color(0.5f, 0.5f, 0.5f, 0.5f);
@@ -219,14 +243,18 @@ public class BMSRenderer: MonoBehaviour
         if(noteObjects.ContainsKey(note))
         {
             var noteObject = noteObjects[note];
-            noteObject.transform.position = new Vector3(left, OffsetToTop(offset), 0);
+            noteObject.transform.localPosition = new Vector3(left, OffsetToTop(offset), 0);
             noteObject.SetActive(true);
         }
         else
         {
-            var noteObject = Instantiate(squarePrefab);
-            noteObject.transform.position = new Vector3(left, OffsetToTop(offset), 0);
-            noteObject.GetComponent<SpriteRenderer>().color = noteColors[note.Lane];
+            var noteObject = GetInstance(squarePrefab);
+            noteObject.transform.localPosition = new Vector3(left, OffsetToTop(offset), 0);
+            noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
+            var spriteRenderer = noteObject.GetComponent<SpriteRenderer>();
+            spriteRenderer.color = noteColors[note.Lane];
+            spriteRenderer.sortingLayerName = "Note";
+            noteObject.name = "Note";
             noteObjects.Add(note, noteObject);
             noteObject.SetActive(true);
         }
@@ -254,12 +282,12 @@ public class BMSRenderer: MonoBehaviour
             if (noteObjects.ContainsKey(head))
             {
                 var noteObject = noteObjects[head];
-                noteObject.transform.position = new Vector3(left, startTop, 0);
+                noteObject.transform.localPosition = new Vector3(left, startTop, 0);
             }
             else
             {
-                var noteObject = Instantiate(squarePrefab);
-                noteObject.transform.position = new Vector3(left, startTop, 0);
+                var noteObject = GetInstance(squarePrefab);
+                noteObject.transform.localPosition = new Vector3(left, startTop, 0);
                 noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
                 noteObject.GetComponent<SpriteRenderer>().color = noteColors[head.Lane];
                 noteObject.name = "LongNoteHead";
@@ -271,13 +299,13 @@ public class BMSRenderer: MonoBehaviour
         if(noteObjects.ContainsKey(tail))
         {
             var noteObject = noteObjects[tail];
-            noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
+            noteObject.transform.localPosition = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
         }
         else
         {
-            var noteObject = Instantiate(squarePrefab);
-            noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
+            var noteObject = GetInstance(squarePrefab);
+            noteObject.transform.localPosition = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
             noteObject.GetComponent<SpriteRenderer>().color = noteColors[tail.Lane];
             noteObject.name = "LongNoteTail";
