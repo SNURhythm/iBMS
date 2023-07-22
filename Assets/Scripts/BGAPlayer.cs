@@ -56,8 +56,6 @@ public class BGAPlayer
             Debug.Log(e);
             OnPrepareCompleted(player);
         }
-        Debug.Log("What");
-        
     }
 
     private void OnPrepareCompleted(VideoPlayer source)
