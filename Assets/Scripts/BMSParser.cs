@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -130,6 +131,21 @@ public class BMSParser : IParser
                     var xx = line.Substring(4, 2);
                     var value = line.Substring(7);
                     ParseHeader(line.Substring(1, 3), xx, value); // TODO: refactor this shit
+                } else if (line.StartsWith("#BPM"))
+                {
+                    // #BPMxx value or #BPM value
+                    if (line.Substring(4).StartsWith(' '))
+                    {
+                        var value = line.Substring(5);
+                        ParseHeader("BPM", null, value);
+                    }
+                    else
+                    {
+                        var xx = line.Substring(4, 2);
+                        var value = line.Substring(7);
+                        ParseHeader("BPM", xx, value);
+                    }
+                    
                 }
                 else
                 {
@@ -257,7 +273,7 @@ public class BMSParser : IParser
                                 if (val == "00") break;
                                 
                                 timeline.Bpm = bpmTable[DecodeBase36(val)];
-                                Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}");
+                                Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}, {val}");
                                 timeline.BpmChange = true;
                                 currentBpm = timeline.Bpm;
                                 
@@ -338,10 +354,10 @@ public class BMSParser : IParser
                 chart.Measures.Add(measure);
                 foreach (var (position, timeline) in timelines)
                 {
-                    if (timeline.BpmChange) bpm = timeline.Bpm;
+                    
                     // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
                     var interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / bpm;
-
+                    if (timeline.BpmChange) bpm = timeline.Bpm;
                     timePassed += (long)interval;
                     timeline.Timing = timePassed;
                     measure.Timelines.Add(timeline);
@@ -439,11 +455,15 @@ public class BMSParser : IParser
                 break;
             case "BPM":
                 if (value == null) throw new Exception("invalid BPM value");
-                if (xx == null || xx.Length == 0)
+                if (string.IsNullOrEmpty(xx))
                     // chart initial bpm
                     chart.Bpm = double.Parse(value);
                 else
+                {
+                    Debug.Log($"BPM: {DecodeBase36(xx)} = {double.Parse(value)}");
                     bpmTable[DecodeBase36(xx)] = double.Parse(value);
+                    
+                }
 
                 break;
             case "MIDIFILE":

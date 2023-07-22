@@ -283,8 +283,8 @@ public class RhythmControl : MonoBehaviour
 
     private void LoadGame()
     {
-        var basePath = "/testbms/Dreadnought/";
-        parser.Parse(Application.streamingAssetsPath + basePath+"_Dreadnought_fragarach.bms");
+        var basePath = "/testbms/[xi] FREEDOM DiVE/";
+        parser.Parse(Application.streamingAssetsPath + basePath+"_another.bme");
 
         // set defaultDecodeBufferSize
         var advancedSettings = new ADVANCEDSETTINGS
