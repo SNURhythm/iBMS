@@ -85,23 +85,20 @@ public class RhythmControl : MonoBehaviour
     // Update is called once per frame
     private void Update()
     {
+        if (!isPlaying) return;
+        var currentDspTime = GetCurrentDspTimeMicro();
+        maxCompensatedDspTime = Math.Max(maxCompensatedDspTime, GetCompensatedDspTimeMicro());
+        var time = Math.Max(currentDspTime, maxCompensatedDspTime);
+        renderer.Draw(time);
 
-        if (isPlaying)
+        channelGroup.isPlaying(out var playing); // TODO: check for last timeline since this would not work if the last note is a long note
+        if (!playing)
         {
-            var currentDspTime = GetCurrentDspTimeMicro();
-            maxCompensatedDspTime = Math.Max(maxCompensatedDspTime, GetCompensatedDspTimeMicro());
-            var time = Math.Max(currentDspTime, maxCompensatedDspTime);
-            renderer.Draw(time);
-
-            channelGroup.isPlaying(out var playing); // TODO: check for last timeline since this would not work if the last note is a long note
-            if (!playing)
-            {
-                isPlaying = false;
-                // go back to chart select
-                Debug.Log("Game Over");
-                // load scene
-                SceneManager.LoadScene("ChartSelectScene");
-            }
+            isPlaying = false;
+            // go back to chart select
+            Debug.Log("Game Over");
+            // load scene
+            SceneManager.LoadScene("ChartSelectScene");
         }
     }
 
@@ -324,8 +321,8 @@ public class RhythmControl : MonoBehaviour
         await Task.Run(() =>
         {
 
-            var basePath = Path.GetDirectoryName(GameManager.Instance.bmsPath);
-            parser.Parse(GameManager.Instance.bmsPath);    
+            var basePath = Path.GetDirectoryName(GameManager.Instance.BmsPath);
+            parser.Parse(GameManager.Instance.BmsPath);    
             for (var i = 0; i < 36 * 36; i++)
             {
                 var wavFileName = parser.GetWavFileName(i);

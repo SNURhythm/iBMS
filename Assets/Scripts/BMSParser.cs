@@ -457,7 +457,7 @@ public class BMSParser : IParser
 
     private void ParseHeader(string cmd, string xx, string value)
     {
-        Debug.Log($"cmd: {cmd}, xx: {xx} isXXNull: {xx == null}, value: {value}");
+        // Debug.Log($"cmd: {cmd}, xx: {xx} isXXNull: {xx == null}, value: {value}");
         switch (cmd)
         {
             case "PLAYER":

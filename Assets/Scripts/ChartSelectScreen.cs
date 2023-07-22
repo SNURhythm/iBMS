@@ -22,13 +22,13 @@ public class ChartSelectScreen : MonoBehaviour
 
     private void OnEnable()
     {
+        // NOTE: This would not work on Android but it's fine for now since we'll not be using StreamingAssets on release
         var info = new DirectoryInfo(Application.streamingAssetsPath+"/testbms");
         var fileInfo = info.GetDirectories();
         ChartSelectButtons = new GameObject[fileInfo.Length];
         for (var i = 0; i < fileInfo.Length; i++)
         {
             var file = fileInfo[i];
-            Debug.Log(file.Name);
 
             if (file.Name.EndsWith(".meta")) continue;
             var button = Instantiate(ChartSelectButtonPrefab, ChartSelectButtonParent.transform);
@@ -41,15 +41,13 @@ public class ChartSelectScreen : MonoBehaviour
                 var chartFileInfo = chartInfo.GetFiles();
                 foreach (var chartFile in chartFileInfo)
                 {
-                    Debug.Log(chartFile.Extension);
-                    if (!new string[] { ".bms", ".bme", ".bml" }.Contains(chartFile.Extension)) continue;
-                    Debug.Log(chartFile.Name);
+                    if (!new [] { ".bms", ".bme", ".bml" }.Contains(chartFile.Extension)) continue;
                     var chartButton = Instantiate(ChartSelectButtonPrefab, ChartSelectButtonParent.transform);
                     chartButton.GetComponent<ChartSelectButton>().ChartTitle.text = chartFile.Name;
                     chartButton.GetComponent<Button>().onClick.AddListener(() =>
                     {
                         Debug.Log("Load chart: " + chartFile.FullName);
-                        GameManager.Instance.bmsPath = chartFile.FullName;
+                        GameManager.Instance.BmsPath = chartFile.FullName;
                         // load scene
                         UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("LoadingScene");
                     });
