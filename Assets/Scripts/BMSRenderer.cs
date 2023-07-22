@@ -176,6 +176,7 @@ public class BMSRenderer: MonoBehaviour
 
     void DestroyNote(Note note)
     {
+        if (!noteObjects.ContainsKey(note)) return; // there is a case that note is not even instantiated (e.g. extremely fast bpm change, fps drop)
         RecycleInstance(squarePrefab,noteObjects[note]);
         noteObjects.Remove(note);
     }
@@ -206,6 +207,7 @@ public class BMSRenderer: MonoBehaviour
     }
     void DestroyMeasureLine(Measure measure)
     {
+        if (!measureLineObjects.ContainsKey(measure)) return;
         RecycleInstance(squarePrefab, measureLineObjects[measure]);
         measureLineObjects.Remove(measure);
         

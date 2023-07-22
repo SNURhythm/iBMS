@@ -9,6 +9,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
 using UnityEngine.Networking;
+using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
 
 public class RhythmControl : MonoBehaviour
@@ -91,6 +92,16 @@ public class RhythmControl : MonoBehaviour
             maxCompensatedDspTime = Math.Max(maxCompensatedDspTime, GetCompensatedDspTimeMicro());
             var time = Math.Max(currentDspTime, maxCompensatedDspTime);
             renderer.Draw(time);
+
+            channelGroup.isPlaying(out var playing); // TODO: check for last timeline since this would not work if the last note is a long note
+            if (!playing)
+            {
+                isPlaying = false;
+                // go back to chart select
+                Debug.Log("Game Over");
+                // load scene
+                SceneManager.LoadScene("ChartSelectScene");
+            }
         }
     }
 
