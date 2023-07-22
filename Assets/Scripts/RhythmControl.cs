@@ -2,22 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using FMOD;
 using FMODUnity;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
 using UnityEngine.Networking;
-using UnityEngine.Video;
 using Debug = UnityEngine.Debug;
 
 public class RhythmControl : MonoBehaviour
 {
     private const int MaxChannels = 1024;
 
-    private readonly Queue<(ulong dspclock, int wav)> soundQueue = new();
+    private Queue<(ulong dspclock, int wav)> soundQueue;
 
-    private readonly Sound[] wavSounds = new Sound[36 * 36];
+    
+    private Sound[] wavSounds;
     
 
     private ChannelGroup channelGroup;
@@ -30,7 +31,7 @@ public class RhythmControl : MonoBehaviour
     private Sound music;
     private BMSParser parser;
     private BMSRenderer renderer;
-    private BGAPlayer bgaPlayer = new();
+    private BGAPlayer bgaPlayer;
     private Judge judge;
 
     private ulong startDSPClock;
@@ -59,7 +60,9 @@ public class RhythmControl : MonoBehaviour
         // var result = _system.setDSPBufferSize(256, 2);
         // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
         system.init(MaxChannels, INITFLAGS.NORMAL, IntPtr.Zero);
-
+        soundQueue = new();
+        wavSounds = new Sound[36 * 36];
+        bgaPlayer = new();
         renderer = GetComponent<BMSRenderer>();
         LoadGame();
         Debug.Log("Load Complete");
@@ -291,10 +294,9 @@ public class RhythmControl : MonoBehaviour
         isPlaying = true;
     }
 
-    private void LoadGame()
+    private async void LoadGame()
     {
-        var basePath = "/testbms/Dreadnought/";
-        parser.Parse(Application.streamingAssetsPath + basePath+"_Dreadnought_fragarach.bms");
+
 
         // set defaultDecodeBufferSize
         var advancedSettings = new ADVANCEDSETTINGS
@@ -307,58 +309,67 @@ public class RhythmControl : MonoBehaviour
         result = system.getDSPBufferSize(out var blockSize, out var numBlocks);
         result = system.getSoftwareFormat(out var frequency, out _, out _);
         system.getMasterChannelGroup(out channelGroup);
-
-        for (var i = 0; i < 36 * 36; i++)
+        var bgas = new List<(int id, string path)>();
+        await Task.Run(() =>
         {
-            var wavFileName = parser.GetWavFileName(i);
-            var bmpFileName = parser.GetBmpFileName(i);
-            if (wavFileName != null)
+
+            var basePath = Path.GetDirectoryName(GameManager.Instance.bmsPath);
+            parser.Parse(GameManager.Instance.bmsPath);    
+            for (var i = 0; i < 36 * 36; i++)
             {
-                byte[] wavBytes = GetWavBytes(Application.streamingAssetsPath + basePath + wavFileName);
-                if (wavBytes == null)
+                var wavFileName = parser.GetWavFileName(i);
+                var bmpFileName = parser.GetBmpFileName(i);
+                if (wavFileName != null)
                 {
-                    Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(i));
-                }
-                else
-                {
-                    var createSoundExInfo = new CREATESOUNDEXINFO
+                    byte[] wavBytes = GetWavBytes(basePath + "/" + wavFileName);
+                    if (wavBytes == null)
                     {
-                        length = (uint)wavBytes.Length,
-                        cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
-                    };
-                    result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
-                        ref createSoundExInfo, out wavSounds[i]);
-                    wavSounds[i].setLoopCount(0);
-                    // _system.playSound(wav[i], _channelGroup, true, out channel);
+                        Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(i));
+                    }
+                    else
+                    {
+                        var createSoundExInfo = new CREATESOUNDEXINFO
+                        {
+                            length = (uint)wavBytes.Length,
+                            cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
+                        };
+                        result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+                            ref createSoundExInfo, out wavSounds[i]);
+                        wavSounds[i].setLoopCount(0);
+                        // _system.playSound(wav[i], _channelGroup, true, out channel);
 
-                    if (result != RESULT.OK) Debug.Log($"createSound failed wav{i}. {result}");
+                        if (result != RESULT.OK) Debug.Log($"createSound failed wav{i}. {result}");
+                    }
+                }
+
+                if (bmpFileName != null)
+                {
+                    bgas.Add((i, Application.streamingAssetsPath + basePath + bmpFileName));
                 }
             }
+            var ms = blockSize * 1000.0f / frequency;
 
-            if (bmpFileName != null)
-            {
-                bgaPlayer.Load(i, Application.streamingAssetsPath + basePath + bmpFileName);
-            }
+            Debug.Log($"Mixer blockSize        = {ms} ms");
+            Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
+            Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
+        });
+        foreach (var (id, path) in bgas)
+        {
+            // We should load bga in main thread because it adds VideoPlayer on main camera.
+            // And it is OK to call this method synchronously because VideoPlayer loads video asynchronously.
+            bgaPlayer.Load(id, path);
         }
-        
+        renderer.Init(parser.GetChart());
+        judge = new Judge(parser.GetChart().Rank);
 
         if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
         {
-            bgaPlayer.OnAllPlayersLoaded += (sender, args) => StartMusic();
+            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 2.0f);
         }
         else
         {
-            Invoke(nameof(StartMusic),2.0f);
+            Invoke(nameof(StartMusic), 2.0f);
         }
-
-
-        var ms = blockSize * 1000.0f / frequency;
-
-        Debug.Log($"Mixer blockSize        = {ms} ms");
-        Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
-        Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
-        renderer.Init(parser.GetChart());
-        judge = new Judge(parser.GetChart().Rank);
     }
 
     private byte[] AndroidTryGetWav(string path)
