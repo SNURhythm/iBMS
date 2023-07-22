@@ -41,6 +41,7 @@ public class TimeLine
     public TimeLine AddBackgroundNote(Note note)
     {
         BackgroundNotes.Add(note);
+        note.Timeline = this;
         return this;
     }
 }

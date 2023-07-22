@@ -11,6 +11,9 @@ public class BMSRenderer: MonoBehaviour
     private readonly float noteHeight = 1.0f;
     private readonly float judgeLinePosition = 0.0f;
     private readonly float judgeLineHeight = 1.0f;
+
+    private float judgeLineBottom => judgeLinePosition - judgeLineHeight / 2;
+
     private readonly Dictionary<Note, GameObject> noteObjects = new Dictionary<Note, GameObject>();
     private readonly Dictionary<Measure, GameObject> measureLineObjects = new Dictionary<Measure, GameObject>();
     private GameObject squarePrefab;
@@ -101,36 +104,39 @@ public class BMSRenderer: MonoBehaviour
                 if (IsOverUpperBound(offset)) break;
                 
                 if (j == 0) DrawMeasureLine(measure, measure.Pos - currentPos);
-                var shouldDestroy = IsUnderLowerBound(offset);
-                if (shouldDestroy && isFirstMeasure)
+                var shouldDestroyTimeline = IsUnderLowerBound(offset);
+                if (shouldDestroyTimeline && isFirstMeasure)
                 {
                     passedTimelineCount++;
-                    Debug.Log($"Destroying timeline, passedTimelineCount: {passedTimelineCount}, total timeline count: {measure.Timelines.Count}");
+                    // Debug.Log($"Destroying timeline, passedTimelineCount: {passedTimelineCount}, total timeline count: {measure.Timelines.Count}");
                 }
 
                 foreach (var note in timeline.Notes)
                 {
                     if (note == null) continue;
-                    if (shouldDestroy)
+                    if(note.IsDead) continue;
+                    if (shouldDestroyTimeline || note.IsPlayed)
                     {
                         if (note is LongNote ln)
                         {
-                            if (ln.IsTail())
+                            if (ln.IsTail)
                             {
-                                if (orphanLongNotes.Contains(ln.Head)) orphanLongNotes.Remove(ln.Head);
+                                orphanLongNotes.Remove(ln.Head);
                             }
                             else
                             {
-                                // add orphan tail
+                                // add orphan long note's head
                                 orphanLongNotes.Add(ln);
                             }
                         }
+                        note.IsDead = true;
                         DestroyNote(note);
                         continue;
                     }
+                    
                     if (note is LongNote longNote)
                     {
-                        if (!longNote.IsTail()) DrawLongNote(longNote, offset, longNote.Tail.Timeline.Pos - currentPos);
+                        if (!longNote.IsTail) DrawLongNote(longNote, offset, longNote.Tail.Timeline.Pos - currentPos);
                     }
                     else
                     {
@@ -153,7 +159,7 @@ public class BMSRenderer: MonoBehaviour
                 passedTimelineCount = 0;
                 passedMeasureCount++;
                 DestroyMeasureLine(measure);
-                Debug.Log($"Skipping measure since all {measure.Timelines.Count} timelines are passed, passedMeasureCount: {passedMeasureCount}");
+                // Debug.Log($"Skipping measure since all {measure.Timelines.Count} timelines are passed, passedMeasureCount: {passedMeasureCount}");
             }
         }
 
@@ -162,17 +168,14 @@ public class BMSRenderer: MonoBehaviour
             DrawLongNote(orphanLongNote, orphanLongNote.Timeline.Pos - currentPos, orphanLongNote.Tail.Timeline.Pos - currentPos, true);
         }
         
+        
         lastDrawTime = currentTime;
     }
 
     void DestroyNote(Note note)
     {
-        if (noteObjects.ContainsKey(note))
-        {
-            Destroy(noteObjects[note]);
-            noteObjects.Remove(note);
-        }
-
+        Destroy(noteObjects[note]);
+        noteObjects.Remove(note);
     }
     
     void DestroyMeasureLine(Measure measure)
@@ -235,7 +238,14 @@ public class BMSRenderer: MonoBehaviour
         var tail = head.Tail;
         var left = LaneToLeft(head.Lane);
         var startTop = OffsetToTop(startOffset);
+
         var endTop = OffsetToTop(endOffset);
+        if (head.IsHolding)
+        {
+            // TODO: Good start, early release -> tail should keep its height when it's released
+
+            startTop = Math.Min(judgeLineBottom, endTop-noteHeight);
+        }
         var height = endTop - startTop;
         // draw start note, end note, and draw a bar between them
         // we should make tail note have a height, not head, since head will be disappeared before tail is played
@@ -252,6 +262,7 @@ public class BMSRenderer: MonoBehaviour
                 noteObject.transform.position = new Vector3(left, startTop, 0);
                 noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
                 noteObject.GetComponent<SpriteRenderer>().color = noteColors[head.Lane];
+                noteObject.name = "LongNoteHead";
                 noteObjects.Add(head, noteObject);
                 noteObject.SetActive(true);
             }
@@ -261,6 +272,7 @@ public class BMSRenderer: MonoBehaviour
         {
             var noteObject = noteObjects[tail];
             noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
+            noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
         }
         else
         {
@@ -268,6 +280,7 @@ public class BMSRenderer: MonoBehaviour
             noteObject.transform.position = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
             noteObject.GetComponent<SpriteRenderer>().color = noteColors[tail.Lane];
+            noteObject.name = "LongNoteTail";
             noteObjects.Add(tail, noteObject);
             noteObject.SetActive(true);
         }
