@@ -289,8 +289,11 @@ public class BMSRenderer: MonoBehaviour
                 var noteObject = GetInstance(squarePrefab);
                 noteObject.transform.localPosition = new Vector3(left, startTop, 0);
                 noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
-                noteObject.GetComponent<SpriteRenderer>().color = noteColors[head.Lane];
+                var spriteRenderer = noteObject.GetComponent<SpriteRenderer>();
+                spriteRenderer.color = noteColors[head.Lane];
+                spriteRenderer.sortingLayerName = "Note";
                 noteObject.name = "LongNoteHead";
+
                 noteObjects.Add(head, noteObject);
                 noteObject.SetActive(true);
             }
@@ -307,7 +310,9 @@ public class BMSRenderer: MonoBehaviour
             var noteObject = GetInstance(squarePrefab);
             noteObject.transform.localPosition = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
-            noteObject.GetComponent<SpriteRenderer>().color = noteColors[tail.Lane];
+            var spriteRenderer = noteObject.GetComponent<SpriteRenderer>();
+            spriteRenderer.color = noteColors[tail.Lane];
+            spriteRenderer.sortingLayerName = "Note";
             noteObject.name = "LongNoteTail";
             noteObjects.Add(tail, noteObject);
             noteObject.SetActive(true);

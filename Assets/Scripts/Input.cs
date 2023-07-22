@@ -8,10 +8,7 @@ public class Input : MonoBehaviour
     private RhythmControl rhythmControl;
 
     private void Awake()
-    {
-        rhythmControl = GetComponent<RhythmControl>();
-
-        Debug.Log("Input Awake");
+    { 
         // set polling frequency to 1000Hz
         InputSystem.pollingFrequency = 1000;
         // set fixed update rate to 1000Hz
@@ -20,6 +17,7 @@ public class Input : MonoBehaviour
 
     private void Start()
     {
+        rhythmControl = GetComponent<RhythmControl>();
         Touch.onFingerMove += FingerMove;
         Touch.onFingerDown += FingerDown;
         Touch.onFingerUp += FingerUp;

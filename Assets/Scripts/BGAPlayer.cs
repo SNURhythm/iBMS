@@ -8,7 +8,7 @@ public class BGAPlayer
 {
     private static readonly string[] extensions = { "mp4", "wmv", "m4v", "webm", "mpg", "mpeg", "m1v", "m2v", "avi" };
     private readonly Dictionary<int, VideoPlayer> players = new();
-private readonly Dictionary<int, bool> hasEverPlayed = new();
+
     // schedules
     public SortedDictionary<long, List<int>> Schedules = new();
     public int TotalPlayers { get; private set; }
