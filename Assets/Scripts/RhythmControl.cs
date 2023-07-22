@@ -95,6 +95,7 @@ public class RhythmControl : MonoBehaviour
         if (!playing)
         {
             isPlaying = false;
+            UnloadGame();
             // go back to chart select
             Debug.Log("Game Over");
             // load scene
@@ -378,6 +379,20 @@ public class RhythmControl : MonoBehaviour
         {
             Invoke(nameof(StartMusic), 2.0f);
         }
+    }
+
+    private void UnloadGame()
+    {
+        // release all sounds
+        foreach (var sound in wavSounds)
+        {
+            sound.release();
+        }
+        
+        // release system
+        system.release();
+        Resources.UnloadUnusedAssets();
+        System.GC.Collect();
     }
 
     private byte[] AndroidTryGetWav(string path)
