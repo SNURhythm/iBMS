@@ -185,7 +185,7 @@ public class BMSRenderer: MonoBehaviour
         instance.SetActive(false);
         if (!instancePool.ContainsKey(squarePrefab))
         {
-            instancePool.Add(squarePrefab, new Queue<GameObject>());
+            instancePool.Add(prefab, new Queue<GameObject>());
         }
         instancePool[squarePrefab].Enqueue(instance);
     }

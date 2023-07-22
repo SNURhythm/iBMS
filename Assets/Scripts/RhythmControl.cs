@@ -189,7 +189,7 @@ public class RhythmControl : MonoBehaviour
                                 longNote.MissRelease(currentTime);
                             }
                         }
-                        Debug.Log($"Judgement: {judgeResult.Judgement}, Diff: {judgeResult.Diff}");
+                        // Debug.Log($"Judgement: {judgeResult.Judgement}, Diff: {judgeResult.Diff}");
                         latestJudgement = judgeResult.Judgement;
                         if (judgeResult.ShouldComboBreak)
                         {
@@ -200,7 +200,7 @@ public class RhythmControl : MonoBehaviour
                             if(note is not LongNote or LongNote { IsTail: true })
                                 combo++;
                         }
-                        Debug.Log($"Combo: {combo}");
+                        // Debug.Log($"Combo: {combo}");
                     }
 
                     autoplayedTimelines = j + 1;
