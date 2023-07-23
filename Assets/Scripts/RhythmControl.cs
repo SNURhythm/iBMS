@@ -373,11 +373,11 @@ public class RhythmControl : MonoBehaviour
 
         if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
         {
-            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 2.0f);
+            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 0.0f);
         }
         else
         {
-            Invoke(nameof(StartMusic), 2.0f);
+            Invoke(nameof(StartMusic), 0.0f);
         }
     }
 
