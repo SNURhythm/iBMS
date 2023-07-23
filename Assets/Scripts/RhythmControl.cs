@@ -291,16 +291,19 @@ public class RhythmControl : MonoBehaviour
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
                     latestJudgement = judgeResult.Judgement;
-                    if (note is LongNote longNote)
+                    if (judgeResult.IsNotePlayed)
                     {
-                        if (!longNote.IsTail)
+                        if (note is LongNote longNote)
                         {
-                            longNote.Press(GetCompensatedDspTimeMicro());
+                            if (!longNote.IsTail)
+                            {
+                                longNote.Press(GetCompensatedDspTimeMicro());
+                            }
                         }
-                    }
-                    else
-                    {
-                        note.Press(GetCompensatedDspTimeMicro());
+                        else
+                        {
+                            note.Press(GetCompensatedDspTimeMicro());
+                        }
                     }
 
                     if (judgeResult.ShouldComboBreak) combo = 0;
