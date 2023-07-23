@@ -285,8 +285,8 @@ public class RhythmControl : MonoBehaviour
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
                 var note = timeline.Notes[lane];
-                if (note == null) continue;
-                if (note.IsPlayed) continue;
+                if (note == null) return;
+                if (note.IsPlayed) return;
                 var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
@@ -324,8 +324,8 @@ public class RhythmControl : MonoBehaviour
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
                 var note = timeline.Notes[lane];
-                if (note == null) continue;
-                if (note.IsPlayed) continue;
+                if (note == null) return;
+                if (note.IsPlayed) return;
                 var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
@@ -339,7 +339,6 @@ public class RhythmControl : MonoBehaviour
                             else if (judgeResult.Judgement != Judgement.KPOOR) combo++;
                         }
                     }
-
 
                 }
                 else
@@ -592,18 +591,18 @@ public class RhythmControl : MonoBehaviour
     int[] touchingFingers = new int[8] { -1, -1, -1, -1, -1, -1, -1, -1 };
     public void FingerMove(Finger finger, int laneNumber)
     {
-        for (int i = 0; i < 8; i++)
-        {
-            if (touchingFingers[i] == finger.index)
-            {
-                if (laneNumber != i)
-                {
-                    FingerUp(finger, i);
-                    FingerDown(finger, laneNumber);
-                }
-                break;
-            }
-        }
+        // for (int i = 0; i < 8; i++)
+        // {
+        //     if (touchingFingers[i] == finger.index)
+        //     {
+        //         if (laneNumber != i)
+        //         {
+        //             FingerUp(finger, i);
+        //             FingerDown(finger, laneNumber);
+        //         }
+        //         break;
+        //     }
+        // }
     }
 
     public void FingerDown(Finger finger, int laneNumber)
