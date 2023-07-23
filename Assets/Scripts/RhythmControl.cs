@@ -57,8 +57,9 @@ public class RhythmControl : MonoBehaviour
         RuntimeManager.CoreSystem.release();
         Factory.System_Create(out system); // TODO: make system singleton
         system.setSoftwareChannels(256);
+        system.setSoftwareFormat(48000, SPEAKERMODE.DEFAULT, 0);
         // set buffer size
-        // var result = _system.setDSPBufferSize(256, 2);
+        var result = system.setDSPBufferSize(256, 4);
         // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
         system.init(MaxChannels, INITFLAGS.NORMAL, IntPtr.Zero);
         soundQueue = new();
