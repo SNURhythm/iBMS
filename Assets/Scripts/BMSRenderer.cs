@@ -323,7 +323,7 @@ public class BMSRenderer: MonoBehaviour
 
     float LaneToLeft(int lane)
     {
-        return lane * (laneWidth + laneMargin);
+        return (lane+1)%8 * (laneWidth + laneMargin);
     }
 
     float OffsetToTop(double offset)
