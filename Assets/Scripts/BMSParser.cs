@@ -364,6 +364,7 @@ public class BMSParser : IParser
                                     timeline.SetNote(
                                         laneNumber, tail
                                     );
+                                    lnStart[laneNumber] = null;
                                 }
                             }
 
