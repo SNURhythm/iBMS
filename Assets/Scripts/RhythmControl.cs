@@ -164,19 +164,19 @@ public class RhythmControl : MonoBehaviour
                     foreach (var note in timeline.Notes)
                     {
                         if (note == null) continue;
-                        if (!note.IsPlayed)
-                        {
+                        if (note.IsPlayed) continue;
 
-                            if (note is LongNote { IsTail: false } ln)
-                            {
-                                ln.MissPress(time);
-                            }
-                            else
-                            {
-                                combo = 0;
-                                latestJudgement = Judgement.KPOOR;
-                            }
+
+                        if (note is LongNote { IsTail: false } ln)
+                        {
+                            ln.MissPress(time);
                         }
+                        else
+                        {
+                            combo = 0;
+                            latestJudgement = Judgement.KPOOR;
+                        }
+
                     }
                 }
                 else break;
@@ -277,10 +277,10 @@ public class RhythmControl : MonoBehaviour
     {
         Debug.Log("Press: " + lane);
         var measures = parser.GetChart().Measures;
-        for (int i = 0; i < measures.Count; i++)
+        for (int i = passedMeasureCount; i < measures.Count; i++)
         {
             var measure = measures[i];
-            for (int j = 0; j < measure.Timelines.Count; j++)
+            for (int j = passedTimelineCount; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
@@ -319,10 +319,10 @@ public class RhythmControl : MonoBehaviour
     {
         Debug.Log("Release: " + lane);
         var measures = parser.GetChart().Measures;
-        for (int i = 0; i < measures.Count; i++)
+        for (int i = passedMeasureCount; i < measures.Count; i++)
         {
             var measure = measures[i];
-            for (int j = 0; j < measure.Timelines.Count; j++)
+            for (int j = passedTimelineCount; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
