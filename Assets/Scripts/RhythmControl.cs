@@ -15,7 +15,7 @@ using Debug = UnityEngine.Debug;
 public class RhythmControl : MonoBehaviour
 {
     private const int MaxChannels = 1024;
-
+    private const long TimeMargin = 5000000; // 5 seconds
     private Queue<(ulong dspclock, int wav)> soundQueue;
 
     
@@ -92,8 +92,7 @@ public class RhythmControl : MonoBehaviour
         var time = Math.Max(currentDspTime, maxCompensatedDspTime);
         renderer.Draw(time);
 
-        channelGroup.isPlaying(out var playing); // TODO: check for last timeline since this would not work if the last note is a long note
-        if (!playing)
+        if (time >= parser.GetChart().PlayLength + TimeMargin)
         {
             isPlaying = false;
             UnloadGame();
@@ -371,14 +370,14 @@ public class RhythmControl : MonoBehaviour
         }
         renderer.Init(parser.GetChart());
         judge = new Judge(parser.GetChart().Rank);
-
+Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
         if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
         {
-            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 2.0f);
+            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 0.0f);
         }
         else
         {
-            Invoke(nameof(StartMusic), 2.0f);
+            Invoke(nameof(StartMusic), 0.0f);
         }
     }
 
@@ -523,6 +522,10 @@ public class RhythmControl : MonoBehaviour
         GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
         GUILayout.FlexibleSpace();
+        GUILayout.BeginHorizontal();
+        if(parser.GetChart()!=null)
+            GUILayout.Label($"{GetCompensatedDspTimeMicro()/1000000}/{(parser.GetChart().TotalLength+TimeMargin)/1000000}",style);
+        GUILayout.EndHorizontal();
         GUILayout.EndArea();
 
 

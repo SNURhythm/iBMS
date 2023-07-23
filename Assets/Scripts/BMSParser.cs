@@ -10,6 +10,7 @@ using UnityEngine.Networking;
 
 // .bms (7key) parser
 
+// ReSharper disable once InconsistentNaming
 public class BMSParser : IParser
 {
     /* Headers
@@ -79,6 +80,7 @@ public class BMSParser : IParser
     private readonly string[] wavTable = new string[36 * 36];
     private readonly string[] bmpTable = new string[36 * 36];
     private int lnobj = -1;
+    // ReSharper disable once IdentifierTypo
     private int lntype = 1;
 
     private Dictionary<int, Dictionary<double, TimeLine>> sections;
@@ -109,8 +111,7 @@ public class BMSParser : IParser
             br = new StreamReader(path);
         }
 
-        string line;
-        while ((line = br.ReadLine()) != null)
+        while (br.ReadLine() is { } line)
         {
             if (!line.StartsWith("#")) continue;
             var measureRegex = new Regex(@"#(\d{3})(\d\d):(.+)");
@@ -164,7 +165,7 @@ public class BMSParser : IParser
                 }
             }
         }
-
+        br?.Close();
         var lastMeasure = measures.Keys.Max();
 
         long timePassed = 0;
@@ -194,42 +195,42 @@ public class BMSParser : IParser
                 }
 
                 var laneNumber = 0;
-                if (channel >= Channel.P1KeyBase && channel < Channel.P1KeyBase + 9)
+                if (channel is >= Channel.P1KeyBase and < Channel.P1KeyBase + 9)
                 {
                     laneNumber = KeyAssign.Beat7[channel - Channel.P1KeyBase];
                     _channel = Channel.P1KeyBase;
                 }
-                else if (channel >= Channel.P2KeyBase && channel < Channel.P2KeyBase + 9)
+                else if (channel is >= Channel.P2KeyBase and < Channel.P2KeyBase + 9)
                 {
                     laneNumber = KeyAssign.Beat7[channel - Channel.P2KeyBase + 9];
                     _channel = Channel.P1KeyBase;
                 }
-                else if (channel >= Channel.P1InvisibleKeyBase && channel < Channel.P1InvisibleKeyBase + 9)
+                else if (channel is >= Channel.P1InvisibleKeyBase and < Channel.P1InvisibleKeyBase + 9)
                 {
                     laneNumber = KeyAssign.Beat7[channel - Channel.P1InvisibleKeyBase];
                     _channel = Channel.P1InvisibleKeyBase;
                 }
-                else if (channel >= Channel.P2InvisibleKeyBase && channel < Channel.P2InvisibleKeyBase + 9)
+                else if (channel is >= Channel.P2InvisibleKeyBase and < Channel.P2InvisibleKeyBase + 9)
                 {
                     laneNumber = KeyAssign.Beat7[channel - Channel.P2InvisibleKeyBase + 9];
                     _channel = Channel.P1InvisibleKeyBase;
                 }
-                else if (channel >= Channel.P1LongKeyBase && channel < Channel.P1LongKeyBase + 9)
+                else if (channel is >= Channel.P1LongKeyBase and < Channel.P1LongKeyBase + 9)
                 {
                     laneNumber = KeyAssign.Beat7[channel - Channel.P1LongKeyBase];
                     _channel = Channel.P1LongKeyBase;
                 }
-                else if (channel >= Channel.P2LongKeyBase && channel < Channel.P2LongKeyBase + 9)
+                else if (channel is >= Channel.P2LongKeyBase and < Channel.P2LongKeyBase + 9)
                 {
                     laneNumber = KeyAssign.Beat7[channel - Channel.P2LongKeyBase + 9];
                     _channel = Channel.P1LongKeyBase;
                 }
-                else if (channel >= Channel.P1MineKeyBase && channel < Channel.P1MineKeyBase + 9)
+                else if (channel is >= Channel.P1MineKeyBase and < Channel.P1MineKeyBase + 9)
                 {
                     laneNumber = KeyAssign.Beat7[channel - Channel.P1MineKeyBase];
                     _channel = Channel.P1MineKeyBase;
                 }
-                else if (channel >= Channel.P2MineKeyBase && channel < Channel.P2MineKeyBase + 9)
+                else if (channel is >= Channel.P2MineKeyBase and < Channel.P2MineKeyBase + 9)
                 {
                     laneNumber = KeyAssign.Beat7[channel - Channel.P2MineKeyBase + 9];
                     _channel = Channel.P1MineKeyBase;
@@ -252,8 +253,10 @@ public class BMSParser : IParser
                         case Channel.LaneAutoplay:
                             if (DecodeBase36(val) != 0)
                             {
-                                var bgNote = new Note(DecodeBase36(val));
-                                bgNote.Bpm = currentBpm;
+                                var bgNote = new Note(DecodeBase36(val))
+                                {
+                                    Bpm = currentBpm
+                                };
                                 timeline.AddBackgroundNote(bgNote);
                             }
 
@@ -294,16 +297,21 @@ public class BMSParser : IParser
                             break;
                         case Channel.P1KeyBase:
                             var ch = DecodeBase36(val);
+                            if (ch == 0) break;
                             if (ch == lnobj)
                             {
                                 if (lastNote[laneNumber] != null)
                                 {
                                     var lastTimeline = lastNote[laneNumber].Timeline;
-                                    var ln = new LongNote(lastNote[laneNumber].Wav);
-                                    ln.Bpm = currentBpm;
-                                    ln.Tail = new LongNote(NoWav);
-                                    ln.Tail.Bpm = currentBpm;
-                                    ln.Tail.Head = ln;
+                                    var ln = new LongNote(lastNote[laneNumber].Wav)
+                                    {
+                                        Bpm = currentBpm
+                                    };
+                                    ln.Tail = new LongNote(NoWav)
+                                    {
+                                        Bpm = currentBpm,
+                                        Head = ln
+                                    };
                                     lastTimeline.SetNote(
                                         laneNumber, ln
                                     );
@@ -312,18 +320,22 @@ public class BMSParser : IParser
                                     );
                                 }
                             }
-                            else if (ch != 0)
+                            else
                             {
-                                var note = new Note(ch);
-                                note.Bpm = currentBpm;
+                                var note = new Note(ch)
+                                {
+                                    Bpm = currentBpm
+                                };
                                 timeline.SetNote(laneNumber, note);
                                 lastNote[laneNumber] = note;
                             }
 
                             break;
                         case Channel.P1InvisibleKeyBase:
-                            var invNote = new Note(DecodeBase36(val));
-                            invNote.Bpm = currentBpm;
+                            var invNote = new Note(DecodeBase36(val))
+                            {
+                                Bpm = currentBpm
+                            };
                             timeline.SetInvisibleNote(laneNumber, invNote);
 
                             break;
@@ -333,8 +345,10 @@ public class BMSParser : IParser
                             {
                                 if (lnStart[laneNumber] == null)
                                 {
-                                    var ln = new LongNote(DecodeBase36(val));
-                                    ln.Bpm = currentBpm;
+                                    var ln = new LongNote(DecodeBase36(val))
+                                    {
+                                        Bpm = currentBpm
+                                    };
                                     timeline.SetNote(
                                         laneNumber, ln
                                     );
@@ -342,13 +356,16 @@ public class BMSParser : IParser
                                 }
                                 else
                                 {
-                                    var tail = new LongNote(NoWav);
-                                    tail.Bpm = currentBpm;
-                                    tail.Head = lnStart[laneNumber];
+                                    var tail = new LongNote(NoWav)
+                                    {
+                                        Bpm = currentBpm,
+                                        Head = lnStart[laneNumber]
+                                    };
                                     lnStart[laneNumber].Tail = tail;
                                     timeline.SetNote(
                                         laneNumber, tail
                                     );
+                                    lnStart[laneNumber] = null;
                                 }
                             }
 
@@ -372,16 +389,20 @@ public class BMSParser : IParser
                 timePassed += (long)interval;
                 timeline.Timing = timePassed;
                 measure.Timelines.Add(timeline);
-
+                if (timeline.Notes.Count > 0) chart.PlayLength = timePassed;
                 lastPosition = position;
             }
 
             if (measure.Timelines.Count == 0)
             {
-                var timeline = new TimeLine(TempKey);
-                timeline.Timing = timePassed;
+                var timeline = new TimeLine(TempKey)
+                {
+                    Timing = timePassed
+                };
                 measure.Timelines.Add(timeline);
             }
+            
+            chart.TotalLength = timePassed;
 
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / bpm);
             
@@ -442,14 +463,20 @@ public class BMSParser : IParser
         foreach (var c in str)
         {
             result *= 36;
-            if (c >= '0' && c <= '9')
-                result += c - '0';
-            else if (c >= 'A' && c <= 'Z')
-                result += c - 'A' + 10;
-            else if (c >= 'a' && c <= 'z')
-                result += c - 'a' + 10;
-            else
-                return -1; // invalid character
+            switch (c)
+            {
+                case >= '0' and <= '9':
+                    result += c - '0';
+                    break;
+                case >= 'A' and <= 'Z':
+                    result += c - 'A' + 10;
+                    break;
+                case >= 'a' and <= 'z':
+                    result += c - 'a' + 10;
+                    break;
+                default:
+                    return -1; // invalid character
+            }
         }
 
         return result;
@@ -542,9 +569,14 @@ public class BMSParser : IParser
         }
     }
 
-    private int Gcd(int a, int b)
+    private static int Gcd(int a, int b)
     {
-        if (b == 0) return a;
-        return Gcd(b, a % b);
+        while (true)
+        {
+            if (b == 0) return a;
+            var a1 = a;
+            a = b;
+            b = a1 % b;
+        }
     }
 }
