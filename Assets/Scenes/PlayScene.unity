@@ -325,6 +325,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f2cb1cef4908ee94d8e4b51a0be68ccf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  LaneArea: {fileID: 426686326}
 --- !u!114 &716382797
 MonoBehaviour:
   m_ObjectHideFlags: 0
