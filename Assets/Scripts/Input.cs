@@ -5,8 +5,9 @@ using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 public class Input : MonoBehaviour
 {
+    [SerializeField] public GameObject LaneArea; // TODO: use config instead
     private RhythmControl rhythmControl;
-
+    
     private void Awake()
     { 
         // set polling frequency to 1000Hz
@@ -61,7 +62,13 @@ public class Input : MonoBehaviour
 
     private void FingerDown(Finger obj)
     {
-        //Debug.Log("Finger Down[" + obj.index + "]: " + obj.currentTouch.screenPosition + " isActive: " + obj.isActive);
+        if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
+            obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
+        if (Camera.main == null) return;
+        var z = LaneArea.transform.position.z - LaneArea.transform.localScale.y /2 * Mathf.Sin(LaneArea.transform.rotation.eulerAngles.x * Mathf.Deg2Rad);
+        var worldPosition = Camera.main.ScreenToWorldPoint(new Vector3(obj.currentTouch.screenPosition.x,
+            obj.currentTouch.screenPosition.y, z));
+        Debug.Log("Finger Down[" + obj.index + "]: " + worldPosition);
     }
 
     private void FingerUp(Finger obj)
