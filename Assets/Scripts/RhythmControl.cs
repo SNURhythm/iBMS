@@ -18,9 +18,9 @@ public class RhythmControl : MonoBehaviour
     private const long TimeMargin = 5000000; // 5 seconds
     private Queue<(ulong dspclock, int wav)> soundQueue;
 
-    
+
     private Sound[] wavSounds;
-    
+
 
     private ChannelGroup channelGroup;
 
@@ -76,10 +76,10 @@ public class RhythmControl : MonoBehaviour
         system.getSoftwareFormat(out var sampleRate, out _, out _);
         return (long)((double)dspClock / sampleRate * 1000000 - (double)startDSPClock / sampleRate * 1000000);
     }
-    
+
     private long GetCompensatedDspTimeMicro()
     {
-        
+
         return GetCurrentDspTimeMicro() + sameDspClockCount * (long)(Time.fixedDeltaTime * 1000000);
     }
     // Update is called once per frame
@@ -129,7 +129,7 @@ public class RhythmControl : MonoBehaviour
         if (isPlaying)
         {
             var currentDspTime = GetCurrentDspTimeMicro();
-            if(lastDspTime == currentDspTime)
+            if (lastDspTime == currentDspTime)
             {
                 sameDspClockCount++;
             }
@@ -138,11 +138,56 @@ public class RhythmControl : MonoBehaviour
                 sameDspClockCount = 0;
                 lastDspTime = currentDspTime;
             }
-            AutoPlay(GetCompensatedDspTimeMicro());
-           // bgaPlayer.Update(GetCompensatedDspTimeMicro());
-        }
-            
 
+            CheckPassedTimeline(currentDspTime);
+            // AutoPlay(GetCompensatedDspTimeMicro());
+            // bgaPlayer.Update(GetCompensatedDspTimeMicro());
+        }
+
+
+    }
+    int passedMeasureCount = 0;
+    int passedTimelineCount = 0;
+    private void CheckPassedTimeline(long time)
+    {
+        var measures = parser.GetChart().Measures;
+        for (int i = passedMeasureCount; i < measures.Count; i++)
+        {
+            var measure = measures[i];
+            for (int j = passedTimelineCount; j < measure.Timelines.Count; j++)
+            {
+                var timeline = measure.Timelines[j];
+                if (timeline.Timing < time - 200000)
+                {
+                    passedTimelineCount++;
+                    // make remaining notes POOR
+                    foreach (var note in timeline.Notes)
+                    {
+                        if (note == null) continue;
+                        if (!note.IsPlayed)
+                        {
+
+                            if (note is LongNote { IsTail: false } ln)
+                            {
+                                ln.MissPress(time);
+                            }
+                            else
+                            {
+                                combo = 0;
+                                latestJudgement = Judgement.KPOOR;
+                            }
+                        }
+                    }
+                }
+                else break;
+            }
+            if (passedTimelineCount == measure.Timelines.Count)
+            {
+                passedTimelineCount = 0;
+                passedMeasureCount++;
+            }
+            else break;
+        }
     }
 
     private int autoplayedTimelines = 0;
@@ -153,27 +198,27 @@ public class RhythmControl : MonoBehaviour
     private Judgement latestJudgement;
     private void AutoPlay(long currentTime)
     {
-        if(randomOffset < 0)
+        if (randomOffset < 0)
         {
             randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
         }
         var measures = parser.GetChart().Measures;
-        for(int i=autoplayedMeasures; i<measures.Count; i++)
+        for (int i = autoplayedMeasures; i < measures.Count; i++)
         {
             var measure = measures[i];
-            for(int j=autoplayedTimelines; j<measure.Timelines.Count; j++)
+            for (int j = autoplayedTimelines; j < measure.Timelines.Count; j++)
             {
-                
+
                 var timeline = measure.Timelines[j];
                 // if (i==autoplayedMeasures && j==autoplayedTimelines) Debug.Log($"offset: {randomOffset}, timing: {timeline.Timing}, current: {currentTime}");
-                if(Math.Abs(timeline.Timing - currentTime) < randomOffset || timeline.Timing - currentTime < -testRandomOffsetRange)
+                if (Math.Abs(timeline.Timing - currentTime) < randomOffset || timeline.Timing - currentTime < -testRandomOffsetRange)
                 {
                     randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
                     // mimic press
                     foreach (var note in timeline.Notes)
                     {
                         if (note == null) continue;
-      
+
                         var judgeResult = judge.JudgeNow(note, currentTime);
                         if (judgeResult.IsNotePlayed)
                         {
@@ -208,7 +253,7 @@ public class RhythmControl : MonoBehaviour
                         }
                         else
                         {
-                            if(note is not LongNote or LongNote { IsTail: true })
+                            if (note is not LongNote or LongNote { IsTail: true })
                                 combo++;
                         }
                         // Debug.Log($"Combo: {combo}");
@@ -216,26 +261,97 @@ public class RhythmControl : MonoBehaviour
 
                     autoplayedTimelines = j + 1;
                     // Debug.Log("Autoplayed: " + autoplayedTimelines);
-                    if(autoplayedTimelines == measure.Timelines.Count)
+                    if (autoplayedTimelines == measure.Timelines.Count)
                     {
                         autoplayedTimelines = 0;
                         autoplayedMeasures = i + 1;
                     }
-                    i=measures.Count;
+                    i = measures.Count;
                     break;
                 }
             }
         }
     }
-    
+
     private void OnPressLane(int lane)
     {
-        Debug.Log("OnPressLane: " + lane);
+        Debug.Log("Press: " + lane);
+        var measures = parser.GetChart().Measures;
+        for (int i = 0; i < measures.Count; i++)
+        {
+            var measure = measures[i];
+            for (int j = 0; j < measure.Timelines.Count; j++)
+            {
+                var timeline = measure.Timelines[j];
+                if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
+                var note = timeline.Notes[lane];
+                if (note == null) continue;
+                var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
+                if (judgeResult.Judgement != Judgement.NONE)
+                {
+                    latestJudgement = judgeResult.Judgement;
+                    if (note is LongNote longNote)
+                    {
+                        if (!longNote.IsTail)
+                        {
+                            longNote.Press(GetCompensatedDspTimeMicro());
+                        }
+                    }
+                    else
+                    {
+                        note.Press(GetCompensatedDspTimeMicro());
+                    }
+
+                    if (judgeResult.ShouldComboBreak) combo = 0;
+                    else if (judgeResult.Judgement != Judgement.KPOOR) combo++;
+                }
+                return;
+            }
+        }
     }
-    
+
     private void OnReleaseLane(int lane)
     {
-        Debug.Log("OnReleaseLane: " + lane);
+        Debug.Log("Release: " + lane);
+        var measures = parser.GetChart().Measures;
+        for (int i = 0; i < measures.Count; i++)
+        {
+            var measure = measures[i];
+            for (int j = 0; j < measure.Timelines.Count; j++)
+            {
+                var timeline = measure.Timelines[j];
+                if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
+                var note = timeline.Notes[lane];
+                if (note == null) continue;
+                var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
+                if (judgeResult.Judgement != Judgement.NONE)
+                {
+                    latestJudgement = judgeResult.Judgement;
+                    if (note is LongNote longNote)
+                    {
+                        if (longNote.IsTail)
+                        {
+                            longNote.Release(GetCompensatedDspTimeMicro());
+                            if (judgeResult.ShouldComboBreak) combo = 0;
+                            else if (judgeResult.Judgement != Judgement.KPOOR) combo++;
+                        }
+                    }
+
+
+                }
+                else
+                {
+                    if (note is LongNote longNote)
+                    {
+                        if (longNote.IsTail)
+                        {
+                            longNote.MissRelease(GetCompensatedDspTimeMicro());
+                        }
+                    }
+                }
+                return;
+            }
+        }
     }
 
     private void OnDisable()
@@ -262,7 +378,7 @@ public class RhythmControl : MonoBehaviour
         channel.setDelay(startDSP, 0);
         channel.setPaused(false);
     }
-    
+
     private void StartMusic()
     {
         if (isPlaying) return;
@@ -288,7 +404,7 @@ public class RhythmControl : MonoBehaviour
             timeline.BackgroundNotes.ForEach(note =>
             {
                 if (note == null || note.Wav == BMSParser.NoWav) return;
-               // Debug.Log("BgnWav: " + note.Wav+" Timing: "+timeline.Timing);
+                // Debug.Log("BgnWav: " + note.Wav+" Timing: "+timeline.Timing);
                 ScheduleSound(timeline.Timing, note.Wav);
             });
             timeline.InvisibleNotes.ForEach(note =>
@@ -322,7 +438,7 @@ public class RhythmControl : MonoBehaviour
         {
 
             var basePath = Path.GetDirectoryName(GameManager.Instance.BmsPath);
-            parser.Parse(GameManager.Instance.BmsPath);    
+            parser.Parse(GameManager.Instance.BmsPath);
             for (var i = 0; i < 36 * 36; i++)
             {
                 var wavFileName = parser.GetWavFileName(i);
@@ -369,7 +485,7 @@ public class RhythmControl : MonoBehaviour
         }
         renderer.Init(parser.GetChart());
         judge = new Judge(parser.GetChart().Rank);
-Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
+        Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
         if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
         {
             bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 0.0f);
@@ -387,7 +503,7 @@ Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.Get
         {
             sound.release();
         }
-        
+
         // release system
         system.release();
         Resources.UnloadUnusedAssets();
@@ -403,7 +519,7 @@ Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.Get
         {
         }
 
-        if(www.isNetworkError || www.isHttpError) return null;
+        if (www.isNetworkError || www.isHttpError) return null;
         return www.downloadHandler.data;
 
     }
@@ -450,7 +566,7 @@ Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.Get
         if (state == PauseState.Paused)
         {
             channelGroup.setPaused(true);
-            bgaPlayer.PauseAll();;
+            bgaPlayer.PauseAll(); ;
         }
         else
         {
@@ -470,36 +586,39 @@ Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.Get
         system.getSoftwareFormat(out var sampleRate, out _, out _);
         return (ulong)(ms * sampleRate / 1000);
     }
-
-    public void FingerMove(Finger obj)
+    int[] touchingFingers = new int[8] { -1, -1, -1, -1, -1, -1, -1, -1 };
+    public void FingerMove(Finger finger, int laneNumber)
     {
-        channelGroup.getDSPClock(out var dspClock, out var parentClock);
-        system.getSoftwareFormat(out var sampleRate, out _, out _);
-        // WriteTxt(Application.streamingAssetsPath + "/log.log", "Finger Move on clock: " + (double)parentclock / samplerate * 1000 + ", " + Time.time);
-    }
-
-    private void WriteTxt(string filePath, string message)
-    {
-        var directoryInfo = new DirectoryInfo(Path.GetDirectoryName(filePath));
-
-        if (!directoryInfo.Exists) directoryInfo.Create();
-
-        // This text is added only once to the file.
-        if (!File.Exists(filePath))
-            // Create a file to write to.
+        for (int i = 0; i < 8; i++)
         {
-            using var sw = File.CreateText(filePath);
-            sw.WriteLine(message);
-        }
-        else
-            // This text is always added, making the file longer over time
-            // if it is not deleted.
-        {
-            using var sw = File.AppendText(filePath);
-            sw.WriteLine(message);
+            if (touchingFingers[i] == finger.index)
+            {
+                if (laneNumber != i)
+                {
+                    FingerUp(finger, i);
+                    FingerDown(finger, laneNumber);
+                }
+                break;
+            }
         }
     }
-    
+
+    public void FingerDown(Finger finger, int laneNumber)
+    {
+        if (touchingFingers[laneNumber] == -1)
+        {
+            OnPressLane(laneNumber);
+        }
+        touchingFingers[laneNumber] = finger.index;
+    }
+    public void FingerUp(Finger finger, int laneNumber)
+    {
+        if (touchingFingers[laneNumber] == finger.index)
+        {
+            touchingFingers[laneNumber] = -1;
+            OnReleaseLane(laneNumber);
+        }
+    }
 
     private void OnGUI()
     {
@@ -515,15 +634,15 @@ Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.Get
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
-        if(combo>0)
-            GUILayout.Label($"{combo} {latestJudgement}",style);
+        if (combo > 0 || latestJudgement == Judgement.BAD || latestJudgement == Judgement.KPOOR)
+            GUILayout.Label($"{combo} {latestJudgement}", style);
 
         GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
-        if(parser.GetChart()!=null)
-            GUILayout.Label($"{GetCompensatedDspTimeMicro()/1000000}/{(parser.GetChart().TotalLength+TimeMargin)/1000000}",style);
+        if (parser.GetChart() != null)
+            GUILayout.Label($"{GetCompensatedDspTimeMicro() / 1000000}/{(parser.GetChart().TotalLength + TimeMargin) / 1000000}", style);
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
 
