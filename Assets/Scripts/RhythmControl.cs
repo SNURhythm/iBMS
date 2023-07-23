@@ -285,8 +285,8 @@ public class RhythmControl : MonoBehaviour
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
                 var note = timeline.Notes[lane];
-                if (note == null) return;
-                if (note.IsPlayed) return;
+                if (note == null) continue;
+                if (note.IsPlayed) continue;
                 var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
@@ -324,22 +324,21 @@ public class RhythmControl : MonoBehaviour
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
                 var note = timeline.Notes[lane];
-                if (note == null) return;
-                if (note.IsPlayed) return;
+                if (note == null) continue;
+                if (note.IsPlayed) continue;
                 var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
-                    latestJudgement = judgeResult.Judgement;
                     if (note is LongNote longNote)
                     {
                         if (longNote.IsTail)
                         {
+                            latestJudgement = judgeResult.Judgement;
                             longNote.Release(GetCompensatedDspTimeMicro());
                             if (judgeResult.ShouldComboBreak) combo = 0;
                             else if (judgeResult.Judgement != Judgement.KPOOR) combo++;
                         }
                     }
-
                 }
                 else
                 {
