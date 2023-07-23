@@ -280,7 +280,7 @@ public class RhythmControl : MonoBehaviour
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
             var measure = measures[i];
-            for (int j = passedTimelineCount; j < measure.Timelines.Count; j++)
+            for (int j = 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
@@ -322,7 +322,7 @@ public class RhythmControl : MonoBehaviour
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
             var measure = measures[i];
-            for (int j = passedTimelineCount; j < measure.Timelines.Count; j++)
+            for (int j = 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
