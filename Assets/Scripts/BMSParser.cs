@@ -297,6 +297,7 @@ public class BMSParser : IParser
                             break;
                         case Channel.P1KeyBase:
                             var ch = DecodeBase36(val);
+                            if (ch == 0) break;
                             if (ch == lnobj)
                             {
                                 if (lastNote[laneNumber] != null)
@@ -319,7 +320,7 @@ public class BMSParser : IParser
                                     );
                                 }
                             }
-                            else if (ch != 0)
+                            else
                             {
                                 var note = new Note(ch)
                                 {
@@ -388,7 +389,7 @@ public class BMSParser : IParser
                 timePassed += (long)interval;
                 timeline.Timing = timePassed;
                 measure.Timelines.Add(timeline);
-
+                if (timeline.Notes.Count > 0) chart.PlayLength = timePassed;
                 lastPosition = position;
             }
 
@@ -400,6 +401,8 @@ public class BMSParser : IParser
                 };
                 measure.Timelines.Add(timeline);
             }
+            
+            chart.TotalLength = timePassed;
 
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / bpm);
             

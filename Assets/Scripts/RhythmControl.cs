@@ -370,7 +370,7 @@ public class RhythmControl : MonoBehaviour
         }
         renderer.Init(parser.GetChart());
         judge = new Judge(parser.GetChart().Rank);
-
+Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
         if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
         {
             bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 0.0f);
