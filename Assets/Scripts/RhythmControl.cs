@@ -153,8 +153,9 @@ public class RhythmControl : MonoBehaviour
         var measures = parser.GetChart().Measures;
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
+            var isFirstMeasure = i == passedMeasureCount;
             var measure = measures[i];
-            for (int j = passedTimelineCount; j < measure.Timelines.Count; j++)
+            for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < time - 200000)
@@ -181,7 +182,7 @@ public class RhythmControl : MonoBehaviour
                 }
                 else break;
             }
-            if (passedTimelineCount == measure.Timelines.Count)
+            if (passedTimelineCount == measure.Timelines.Count && isFirstMeasure)
             {
                 passedTimelineCount = 0;
                 passedMeasureCount++;
@@ -279,8 +280,10 @@ public class RhythmControl : MonoBehaviour
         var measures = parser.GetChart().Measures;
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
+            var isFirstMeasure = i == passedMeasureCount;
             var measure = measures[i];
-            for (int j = 0; j < measure.Timelines.Count; j++)
+
+            for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
