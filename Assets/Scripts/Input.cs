@@ -70,6 +70,7 @@ public class Input : MonoBehaviour
         var worldPosition = Camera.main.ScreenToWorldPoint(new Vector3(screenPosition.x,
             screenPosition.y, z));
         var lanePosition = worldPosition.x + 3.0f * 8 / 2; // TODO: use constants
+        if (lanePosition < 0 || lanePosition > 3.0f * 8) return -1;
         return (int)((lanePosition / 3.0f) + 7) % 8;
     }
 
