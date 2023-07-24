@@ -254,7 +254,7 @@ public class RhythmControl : MonoBehaviour
                         }
                         else
                         {
-                            if (note is not LongNote or LongNote { IsTail: true })
+                            if (judgeResult.Judgement != Judgement.KPOOR && (note is not LongNote or LongNote { IsTail: true }))
                                 combo++;
                         }
                         // Debug.Log($"Combo: {combo}");
@@ -310,7 +310,8 @@ public class RhythmControl : MonoBehaviour
                     }
 
                     if (judgeResult.ShouldComboBreak) combo = 0;
-                    else if (judgeResult.Judgement != Judgement.KPOOR) combo++;
+                    else if (judgeResult.Judgement != Judgement.KPOOR && (note is not LongNote or LongNote { IsTail: true }))
+                        combo++;
                     return;
                 }
 
