@@ -325,9 +325,9 @@ public class RhythmControl : MonoBehaviour
                 {
                     if (!longNote.Head.IsHolding) return;
                     // if judgement is not good/great/pgreat, it will be judged as bad
-                    if (judgeResult.Judgement == Judgement.NONE || judgeResult.ShouldComboBreak)
+                    if (judgeResult.Judgement is Judgement.NONE or Judgement.KPOOR or Judgement.BAD)
                     {
-                        longNote.MissRelease(GetCompensatedDspTimeMicro());
+                        longNote.Release(GetCompensatedDspTimeMicro());
                         latestJudgement = Judgement.BAD;
                         combo = 0;
                         return;

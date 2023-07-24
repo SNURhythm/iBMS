@@ -27,13 +27,6 @@ public class LongNote : Note
         ReleaseTime = time;
     }
 
-    public void MissRelease(long time)
-    {
-        IsHolding = false;
-        Head.IsHolding = false;
-        ReleaseTime = time;
-    }
-
     public void MissPress(long time)
     {
 
