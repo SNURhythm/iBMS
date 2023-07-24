@@ -10,10 +10,11 @@ public enum Judgement
     GOOD,
     BAD,
     KPOOR,
+    NONE
 }
 public struct JudgeResult
 {
-    
+
     public JudgeResult(Judgement judgement, long diff)
     {
         Judgement = judgement;
@@ -28,7 +29,7 @@ public struct JudgeResult
     }
     public bool IsNotePlayed
     {
-        get => Judgement != Judgement.KPOOR;
+        get => Judgement != Judgement.KPOOR && Judgement != Judgement.NONE;
     }
 }
 public class Judge
@@ -78,18 +79,18 @@ public class Judge
     {
         return early <= value && value <= late;
     }
-    
+
     public JudgeResult JudgeNow(Note note, long inputTime)
     {
         var timeline = note.Timeline;
         var diff = inputTime - timeline.Timing;
-        foreach (var judgement in new[]{Judgement.PGREAT, Judgement.GREAT, Judgement.GOOD, Judgement.BAD, Judgement.KPOOR})
+        foreach (var judgement in new[] { Judgement.PGREAT, Judgement.GREAT, Judgement.GOOD, Judgement.BAD, Judgement.KPOOR })
         {
-            if(CheckRange(diff, judgeWindowTable[judgement].early, judgeWindowTable[judgement].late))
+            if (CheckRange(diff, judgeWindowTable[judgement].early, judgeWindowTable[judgement].late))
             {
                 return new JudgeResult(judgement, diff);
             }
         }
-        return new JudgeResult(Judgement.KPOOR, diff);
+        return new JudgeResult(Judgement.NONE, diff);
     }
 }
