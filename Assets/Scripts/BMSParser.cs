@@ -75,7 +75,7 @@ public class BMSParser : IParser
     };
 
     private readonly double[] bpmTable = new double[36 * 36];
-
+    private readonly int[] StopLengthTable = new int[36 * 36];
     private readonly Chart chart = new();
     private readonly string[] wavTable = new string[36 * 36];
     private readonly string[] bmpTable = new string[36 * 36];
@@ -253,10 +253,7 @@ public class BMSParser : IParser
                         case Channel.LaneAutoplay:
                             if (DecodeBase36(val) != 0)
                             {
-                                var bgNote = new Note(DecodeBase36(val))
-                                {
-                                    Bpm = currentBpm
-                                };
+                                var bgNote = new Note(DecodeBase36(val));
                                 timeline.AddBackgroundNote(bgNote);
                             }
 
@@ -289,11 +286,12 @@ public class BMSParser : IParser
                             timeline.Bpm = bpmTable[DecodeBase36(val)];
                             Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}, {val}");
                             timeline.BpmChange = true;
-                            currentBpm = timeline.Bpm;
 
 
                             break;
                         case Channel.Stop:
+                            timeline.StopLength = StopLengthTable[DecodeBase36(val)];
+                            Debug.Log($"STOP: {timeline.StopLength}, on measure {i}");
                             break;
                         case Channel.P1KeyBase:
                             var ch = DecodeBase36(val);
@@ -303,13 +301,10 @@ public class BMSParser : IParser
                                 if (lastNote[laneNumber] != null)
                                 {
                                     var lastTimeline = lastNote[laneNumber].Timeline;
-                                    var ln = new LongNote(lastNote[laneNumber].Wav)
-                                    {
-                                        Bpm = currentBpm
-                                    };
+                                    var ln = new LongNote(lastNote[laneNumber].Wav);
+
                                     ln.Tail = new LongNote(NoWav)
                                     {
-                                        Bpm = currentBpm,
                                         Head = ln
                                     };
                                     lastTimeline.SetNote(
@@ -322,20 +317,14 @@ public class BMSParser : IParser
                             }
                             else
                             {
-                                var note = new Note(ch)
-                                {
-                                    Bpm = currentBpm
-                                };
+                                var note = new Note(ch);
                                 timeline.SetNote(laneNumber, note);
                                 lastNote[laneNumber] = note;
                             }
 
                             break;
                         case Channel.P1InvisibleKeyBase:
-                            var invNote = new Note(DecodeBase36(val))
-                            {
-                                Bpm = currentBpm
-                            };
+                            var invNote = new Note(DecodeBase36(val));
                             timeline.SetInvisibleNote(laneNumber, invNote);
 
                             break;
@@ -345,10 +334,7 @@ public class BMSParser : IParser
                             {
                                 if (lnStart[laneNumber] == null)
                                 {
-                                    var ln = new LongNote(DecodeBase36(val))
-                                    {
-                                        Bpm = currentBpm
-                                    };
+                                    var ln = new LongNote(DecodeBase36(val));
                                     timeline.SetNote(
                                         laneNumber, ln
                                     );
@@ -358,7 +344,6 @@ public class BMSParser : IParser
                                 {
                                     var tail = new LongNote(NoWav)
                                     {
-                                        Bpm = currentBpm,
                                         Head = lnStart[laneNumber]
                                     };
                                     lnStart[laneNumber].Tail = tail;
@@ -384,11 +369,18 @@ public class BMSParser : IParser
             {
 
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
-                var interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / bpm;
+                var interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
                 if (timeline.BpmChange) bpm = timeline.Bpm;
                 timePassed += (long)interval;
                 timeline.Timing = timePassed;
+                if (timeline.BpmChange) currentBpm = timeline.Bpm;
+                else timeline.Bpm = currentBpm;
+
+                // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition}, bpm: {currentBpm} scale: {measure.Scale} interval: {interval} stop: {timeline.GetStopDuration()}");
+
                 measure.Timelines.Add(timeline);
+                timePassed += timeline.GetStopDuration();
+                lastPosition = position;
                 if (timeline.Notes.Count > 0) chart.PlayLength = timePassed;
                 lastPosition = position;
             }
@@ -397,14 +389,15 @@ public class BMSParser : IParser
             {
                 var timeline = new TimeLine(TempKey)
                 {
-                    Timing = timePassed
+                    Timing = timePassed,
+                    Bpm = currentBpm
                 };
                 measure.Timelines.Add(timeline);
             }
             
             chart.TotalLength = timePassed;
 
-            timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / bpm);
+            timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
             
         }
     }
@@ -510,6 +503,10 @@ public class BMSParser : IParser
                     
                 }
 
+                break;
+            case "STOP":
+                if (value == null || xx == null || xx.Length == 0) throw new Exception("invalid arguments in #STOP");
+                StopLengthTable[DecodeBase36(xx)] = int.Parse(value);
                 break;
             case "MIDIFILE":
                 break;
