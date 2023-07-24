@@ -172,15 +172,30 @@ public class RhythmControl : MonoBehaviour
                         {
                             ln.MissPress(time);
                         }
-                        else
-                        {
-                            combo = 0;
-                            latestJudgement = Judgement.KPOOR;
-                        }
 
+                        combo = 0;
+                        latestJudgement = Judgement.KPOOR;
                     }
                 }
-                else break;
+                else if (timeline.Timing <= time)
+                {
+                    // auto-release long notes
+                    foreach (var note in timeline.Notes)
+                    {
+                        if (note == null) continue;
+                        if (note.IsPlayed) continue;
+                        if (note is LongNote { IsTail: true } longNote)
+                        {
+                            if (!longNote.IsHolding) continue;
+                            longNote.Release(time);
+                            var headJudgeResult = judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
+                            latestJudgement = headJudgeResult.Judgement;
+                            if (headJudgeResult.ShouldComboBreak) combo = 0;
+                            else if (headJudgeResult.Judgement != Judgement.KPOOR)
+                                combo++;
+                        }
+                    }
+                }
             }
             if (passedTimelineCount == measure.Timelines.Count && isFirstMeasure)
             {
@@ -219,43 +234,13 @@ public class RhythmControl : MonoBehaviour
                     foreach (var note in timeline.Notes)
                     {
                         if (note == null) continue;
-
-                        var judgeResult = judge.JudgeNow(note, currentTime);
-                        if (judgeResult.IsNotePlayed)
+                        if (note is LongNote { IsTail: true })
                         {
-                            if (note is LongNote longNote)
-                            {
-                                if (longNote.IsTail)
-                                {
-                                    longNote.Release(currentTime);
-                                }
-                                else
-                                {
-                                    longNote.Press(currentTime);
-                                }
-                            }
-                            else
-                            {
-                                note.Press(currentTime);
-                            }
+                            OnReleaseLane(note.Lane);
                         }
                         else
                         {
-                            if (note is LongNote { IsTail: true } longNote)
-                            {
-                                longNote.MissRelease(currentTime);
-                            }
-                        }
-                        // Debug.Log($"Judgement: {judgeResult.Judgement}, Diff: {judgeResult.Diff}");
-                        latestJudgement = judgeResult.Judgement;
-                        if (judgeResult.ShouldComboBreak)
-                        {
-                            combo = 0;
-                        }
-                        else
-                        {
-                            if (judgeResult.Judgement != Judgement.KPOOR && (note is not LongNote or LongNote { IsTail: true }))
-                                combo++;
+                            OnPressLane(note.Lane);
                         }
                         // Debug.Log($"Combo: {combo}");
                     }
@@ -293,7 +278,7 @@ public class RhythmControl : MonoBehaviour
                 var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
-                    latestJudgement = judgeResult.Judgement;
+                    
                     if (judgeResult.IsNotePlayed)
                     {
                         if (note is LongNote longNote)
@@ -302,15 +287,16 @@ public class RhythmControl : MonoBehaviour
                             {
                                 longNote.Press(GetCompensatedDspTimeMicro());
                             }
+                            // LongNote Head's judgement is determined on release
+                            return; 
                         }
-                        else
-                        {
-                            note.Press(GetCompensatedDspTimeMicro());
-                        }
+
+                        note.Press(GetCompensatedDspTimeMicro());
                     }
+                    latestJudgement = judgeResult.Judgement;
 
                     if (judgeResult.ShouldComboBreak) combo = 0;
-                    else if (judgeResult.Judgement != Judgement.KPOOR && (note is not LongNote or LongNote { IsTail: true }))
+                    else if (judgeResult.Judgement != Judgement.KPOOR)
                         combo++;
                     return;
                 }
@@ -325,8 +311,9 @@ public class RhythmControl : MonoBehaviour
         var measures = parser.GetChart().Measures;
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
+            var isFirstMeasure = i == passedMeasureCount;
             var measure = measures[i];
-            for (int j = 0; j < measure.Timelines.Count; j++)
+            for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
@@ -334,28 +321,23 @@ public class RhythmControl : MonoBehaviour
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
                 var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
-                if (judgeResult.Judgement != Judgement.NONE)
+                if (note is LongNote {IsTail: true} longNote )
                 {
-                    if (note is LongNote longNote)
+                    if (!longNote.Head.IsHolding) return;
+                    // if judgement is not good/great/pgreat, it will be judged as bad
+                    if (judgeResult.Judgement == Judgement.NONE || judgeResult.ShouldComboBreak)
                     {
-                        if (longNote.IsTail)
-                        {
-                            latestJudgement = judgeResult.Judgement;
-                            longNote.Release(GetCompensatedDspTimeMicro());
-                            if (judgeResult.ShouldComboBreak) combo = 0;
-                            else if (judgeResult.Judgement != Judgement.KPOOR) combo++;
-                        }
+                        longNote.MissRelease(GetCompensatedDspTimeMicro());
+                        latestJudgement = Judgement.BAD;
+                        combo = 0;
+                        return;
                     }
-                }
-                else
-                {
-                    if (note is LongNote longNote)
-                    {
-                        if (longNote.IsTail)
-                        {
-                            longNote.MissRelease(GetCompensatedDspTimeMicro());
-                        }
-                    }
+                    longNote.Release(GetCompensatedDspTimeMicro());
+                    var headJudgeResult = judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
+                    latestJudgement = headJudgeResult.Judgement;
+                    if (headJudgeResult.ShouldComboBreak) combo = 0;
+                    else if (headJudgeResult.Judgement != Judgement.KPOOR)
+                        combo++;
                 }
                 return;
             }

@@ -321,6 +321,8 @@ public class BMSRenderer : MonoBehaviour
             var noteObject = noteObjects[tail];
             noteObject.transform.localPosition = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
+            var color = noteColors[tail.Lane];
+            noteObject.GetComponent<SpriteRenderer>().color = new Color(color.r, color.g, color.b, head.IsHolding ? 1.0f : 0.5f);
         }
         else
         {
@@ -328,7 +330,8 @@ public class BMSRenderer : MonoBehaviour
             noteObject.transform.localPosition = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
             var spriteRenderer = noteObject.GetComponent<SpriteRenderer>();
-            spriteRenderer.color = noteColors[tail.Lane];
+            var color = noteColors[tail.Lane];
+            spriteRenderer.color = new Color(color.r, color.g, color.b, head.IsHolding ? 1.0f : 0.5f);
             spriteRenderer.sortingLayerName = "Note";
             noteObject.name = "LongNoteTail";
             noteObjects.Add(tail, noteObject);
