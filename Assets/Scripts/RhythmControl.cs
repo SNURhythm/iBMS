@@ -459,7 +459,7 @@ public class RhythmControl : MonoBehaviour
 
                 if (bmpFileName != null)
                 {
-                    bgas.Add((i, Application.streamingAssetsPath + basePath + bmpFileName));
+                    bgas.Add((i, basePath + bmpFileName));
                 }
             }
             var ms = blockSize * 1000.0f / frequency;
