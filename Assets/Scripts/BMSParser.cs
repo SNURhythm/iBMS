@@ -92,24 +92,7 @@ public class BMSParser : IParser
         Dictionary<int, List<(int channel, string data)>> measures = new();
 
         // read line by line
-        StreamReader br;
-        if (Application.platform == RuntimePlatform.Android)
-        {
-            Debug.Log("Android");
-            //use UnityWebRequest to read file
-            var www = UnityWebRequest.Get(path);
-            www.SendWebRequest();
-            while (!www.isDone)
-            {
-            }
-
-            var bytes = www.downloadHandler.data;
-            br = new StreamReader(new MemoryStream(bytes));
-        }
-        else
-        {
-            br = new StreamReader(path);
-        }
+        StreamReader br = new StreamReader(path);
 
         while (br.ReadLine() is { } line)
         {

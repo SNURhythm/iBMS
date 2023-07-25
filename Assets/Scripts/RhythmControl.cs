@@ -501,37 +501,13 @@ public class RhythmControl : MonoBehaviour
         System.GC.Collect();
     }
 
-    private byte[] AndroidTryGetWav(string path)
-    {
 
-        var www = UnityWebRequest.Get(path);
-        www.SendWebRequest();
-        while (!www.isDone)
-        {
-        }
-
-        if (www.isNetworkError || www.isHttpError) return null;
-        return www.downloadHandler.data;
-
-    }
     private byte[] GetWavBytes(string path)
     {
         // we can't trust given extension, so we should try all supported extensions (mp3, ogg, wav, flac)
         var splitIndex = path.LastIndexOf('.');
         var pathWithoutExtension = path.Substring(0, splitIndex);
         var extensions = new[] { ".mp3", ".ogg", ".wav", ".flac" };
-
-        if (Application.platform == RuntimePlatform.Android)
-        {
-            var temp = AndroidTryGetWav(path);
-            if (temp != null) return temp;
-            foreach (var extension in extensions)
-            {
-                var newPath = pathWithoutExtension + extension;
-                temp = AndroidTryGetWav(newPath);
-                if (temp != null) return temp;
-            }
-        }
 
         if (File.Exists(path))
         {
