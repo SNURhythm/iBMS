@@ -3,12 +3,12 @@ name: Build and Generate IPA
 on:
   push:
     branches:
-      - main
+      - chore/improve-ci-cd
 
 jobs:
   buildForAllSupportedPlatforms:
     name: Build for ${{ matrix.targetPlatform }}
-    runs-on: ubuntu-latest
+    runs-on: macos-13
     strategy:
       fail-fast: false
       matrix:
@@ -31,10 +31,13 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
+      - name: Archive before upload
+        run: |
+          tar -czvf iOS.tar.gz build/iOS
       - uses: actions/upload-artifact@v3
         with:
           name: Build-${{ matrix.targetPlatform }}
-          path: build/${{ matrix.targetPlatform }}
+          path: iOS.tar.gz
   generateIPA:
     needs: buildForAllSupportedPlatforms
     name: Generate IPA
@@ -43,9 +46,14 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
           name: Build-iOS
-          path: build/iOS
+      - name: Unzip iOS.tar.gz
+        run: |
+          ls
+          pwd
+          tar -xzvf iOS.tar.gz
       - name: Generate IPA File
         run: |
+          ls
           cd build/iOS/iOS
           mkdir archive
           xcversion select 14.3.1
