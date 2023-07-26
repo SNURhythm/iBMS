@@ -19,7 +19,7 @@ public class EnableFileSharingPostBuildProcessor
             PlistElementDict rootDict = plist.root;
 
             rootDict.SetBoolean("UIFileSharingEnabled", true);
-
+            rootDict.SetBoolean("LSSupportsOpeningDocumentsInPlace", true);
             // Write to file
             File.WriteAllText(plistPath, plist.WriteToString());
         }
