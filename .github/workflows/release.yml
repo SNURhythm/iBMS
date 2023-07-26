@@ -52,7 +52,7 @@ jobs:
         run: |
           cd build/iOS/iOS
           mkdir archive
-          xcodebuild -scheme "Unity-iPhone" -target "Unity-iPhone" -sdk iphoneos -archivePath archive/iBMS.xcarchive -configuration Release archive
+          xcodebuild -scheme "Unity-iPhone" -target "Unity-iPhone" -sdk iphoneos -archivePath archive/iBMS.xcarchive -configuration Release archive CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
           cp -r archive/iBMS.xcarchive/Products/Applications/iBMS.app/ ./Payload/iBMS.app
           rm -f ./Payload/.DS_Store
           zip -r iBMS.ipa ./Payload
