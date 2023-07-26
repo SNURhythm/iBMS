@@ -3,7 +3,7 @@ name: Build and Generate IPA
 on:
   push:
     branches:
-      - chore/improve-ci-cd
+      - main
 
 jobs:
   buildForAllSupportedPlatforms:
