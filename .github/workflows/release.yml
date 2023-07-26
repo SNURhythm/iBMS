@@ -6,9 +6,9 @@ on:
       - release
 
 jobs:
-  buildForAllSupportedPlatforms:
-    name: Build for ${{ matrix.targetPlatform }}
-    runs-on: ubuntu-latest
+  buildForIOS:
+    name: Build for iOS
+    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: Library
-          key: Library-${{ matrix.targetPlatform }}
+          key: Library-iOS
           restore-keys: Library-
       - uses: game-ci/unity-builder@v2
         env:
@@ -30,8 +30,16 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          targetPlatform: ${{ matrix.targetPlatform }}
+          targetPlatform: iOS
+      - name: Generate IPA File
+        run: |
+          cd build/iOS
+          mkdir archive
+          xcodebuild -scheme "Unity-iPhone" -target "Unity-iPhone" -sdk iphoneos -archivePath archive/iBMS.xcarchive -configuration Release archive
+          cp -r archive/iBMS.xcarchive/Products/Applications/iBMS.app/ ./Payload/iBMS.app
+          rm -f ./Payload/.DS_Store
+          zip -r iBMS.ipa ./Payload 
       - uses: actions/upload-artifact@v3
         with:
-          name: Build-${{ matrix.targetPlatform }}
-          path: build/${{ matrix.targetPlatform }}
+          name: iBMS.ipa
+          path: build/iOS/iBMS.ipa
