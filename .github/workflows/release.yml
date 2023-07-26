@@ -31,27 +31,9 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
-      - name: Archive before upload
-        run: |
-          tar -czvf iOS.tar.gz build/iOS
-      - uses: actions/upload-artifact@v3
-        with:
-          name: Build-${{ matrix.targetPlatform }}
-          path: iOS.tar.gz
-  generateIPA:
-    needs: buildForAllSupportedPlatforms
-    name: Generate IPA
-    runs-on: macos-13
-    steps:
-      - uses: actions/download-artifact@v2
-        with:
-          name: Build-iOS
-      - name: Unzip iOS.tar.gz
-        run: |
-          ls
-          pwd
-          tar -xzvf iOS.tar.gz
-      - name: Generate IPA File
+          cacheUnityInstallationOnMac: true
+      - name: Generate IPA
+        if: matrix.targetPlatform == 'iOS'
         run: |
           ls
           cd build/iOS/iOS
