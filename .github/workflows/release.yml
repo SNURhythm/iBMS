@@ -1,14 +1,14 @@
-name: Release project
+name: Build and Generate IPA
 
 on:
   push:
     branches:
-      - release
+      - main
 
 jobs:
-  buildForIOS:
-    name: Build for iOS
-    runs-on: macos-latest
+  buildForAllSupportedPlatforms:
+    name: Build for ${{ matrix.targetPlatform }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -17,29 +17,44 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           lfs: true
       - uses: actions/cache@v3
         with:
           path: Library
-          key: Library-iOS
+          key: Library-${{ matrix.targetPlatform }}
           restore-keys: Library-
-      - uses: game-ci/unity-builder@v2
+      - uses: game-ci/unity-builder@v2.2.0
         env:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          targetPlatform: iOS
-      - name: Generate IPA File
-        run: |
-          cd build/iOS
-          mkdir archive
-          xcodebuild -scheme "Unity-iPhone" -target "Unity-iPhone" -sdk iphoneos -archivePath archive/iBMS.xcarchive -configuration Release archive
-          cp -r archive/iBMS.xcarchive/Products/Applications/iBMS.app/ ./Payload/iBMS.app
-          rm -f ./Payload/.DS_Store
-          zip -r iBMS.ipa ./Payload 
+          targetPlatform: ${{ matrix.targetPlatform }}
       - uses: actions/upload-artifact@v3
         with:
-          name: iBMS.ipa
-          path: build/iOS/iBMS.ipa
+          name: Build-${{ matrix.targetPlatform }}
+          path: build/${{ matrix.targetPlatform }}
+  generateIPA:
+    needs: buildForAllSupportedPlatforms
+    name: Generate IPA
+    runs-on: macos-13
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: Build-iOS
+          path: build/iOS
+      - name: Generate IPA File
+        run: |
+          cd build/iOS/iOS
+          mkdir archive
+          xcversion select 14.3.1
+          xcodebuild -scheme "Unity-iPhone" -target "Unity-iPhone" -sdk iphoneos -archivePath archive/iBMS.xcarchive -configuration Release archive CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          mkdir Payload
+          cp -r archive/iBMS.xcarchive/Products/Applications/iBMS.app/ ./Payload/iBMS.app
+          rm -f ./Payload/.DS_Store
+          zip -r iBMS.ipa ./Payload
+      - uses: actions/upload-artifact@v3
+        with:
+          name: IPA
+          path: build/iOS/iOS/iBMS.ipa
