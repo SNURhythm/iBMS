@@ -8,12 +8,13 @@ on:
 jobs:
   buildForAllSupportedPlatforms:
     name: Build for ${{ matrix.targetPlatform }}
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         targetPlatform:
           - iOS # Build an iOS player.
+          - Android # Build an Android player.
     steps:
       - uses: actions/checkout@v3
         with:
@@ -31,18 +32,32 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
-          cacheUnityInstallationOnMac: true
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Build-${{ matrix.targetPlatform }}
+          path: build/${{ matrix.targetPlatform }}
+  generateIPA:
+    needs: buildForAllSupportedPlatforms
+    name: Generate IPA
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+      - uses: actions/download-artifact@v2
+        with:
+          name: Build-iOS
+          path: build/iOS
       - name: Generate IPA File
-        if: matrix.targetPlatform == 'iOS'
         run: |
           cd build/iOS/iOS
           mkdir archive
           xcodebuild -scheme "Unity-iPhone" -target "Unity-iPhone" -sdk iphoneos -archivePath archive/iBMS.xcarchive -configuration Release archive
           cp -r archive/iBMS.xcarchive/Products/Applications/iBMS.app/ ./Payload/iBMS.app
           rm -f ./Payload/.DS_Store
-          zip -r iBMS.ipa ./Payload 
+          zip -r iBMS.ipa ./Payload
       - uses: actions/upload-artifact@v3
-        if: matrix.targetPlatform == 'iOS'
         with:
-          name: iBMS.ipa
+          name: IPA
           path: build/iOS/iOS/iBMS.ipa
