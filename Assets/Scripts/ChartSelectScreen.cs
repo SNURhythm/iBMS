@@ -23,7 +23,7 @@ public class ChartSelectScreen : MonoBehaviour
     private void OnEnable()
     {
         // NOTE: This would not work on Android but it's fine for now since we'll not be using StreamingAssets on release
-        var info = new DirectoryInfo(Application.streamingAssetsPath+"/testbms");
+        var info = new DirectoryInfo(Application.persistentDataPath);
         var fileInfo = info.GetDirectories();
         ChartSelectButtons = new GameObject[fileInfo.Length];
         for (var i = 0; i < fileInfo.Length; i++)
