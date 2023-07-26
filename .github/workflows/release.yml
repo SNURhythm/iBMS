@@ -3,12 +3,12 @@ name: Build and Generate IPA
 on:
   push:
     branches:
-      - main
+      - chore/self-hosted-action
 
 jobs:
   buildForAllSupportedPlatforms:
     name: Build for ${{ matrix.targetPlatform }}
-    runs-on: macos-13
+    runs-on: AJW-MacBookAir
     strategy:
       fail-fast: false
       matrix:
