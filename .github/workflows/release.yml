@@ -3,7 +3,7 @@ name: Build and Generate IPA
 on:
   push:
     branches:
-      - chore/self-hosted-action
+      - main
 
 jobs:
   buildForAllSupportedPlatforms:
@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 1
           lfs: true
-      - uses: VioletXF/unity-builder@fix/macos-unity-existence-check
+      - uses: VioletXF/unity-builder@main
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
