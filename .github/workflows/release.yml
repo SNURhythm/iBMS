@@ -19,7 +19,11 @@ jobs:
         with:
           fetch-depth: 1
           lfs: true
-          clean: false
+      - uses: actions/cache@v3
+        with:
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}
+          restore-keys: Library-
       - uses: VioletXF/unity-builder@main
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
