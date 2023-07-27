@@ -24,7 +24,7 @@ jobs:
           path: Library
           key: Library-${{ matrix.targetPlatform }}
           restore-keys: Library-
-      - uses: game-ci/unity-builder@v2.2.0
+      - uses: VioletXF/unity-builder@fix/macos-unity-existence-check
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
