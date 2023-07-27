@@ -19,6 +19,7 @@ jobs:
         with:
           fetch-depth: 1
           lfs: true
+          clean: false
       - uses: VioletXF/unity-builder@main
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
