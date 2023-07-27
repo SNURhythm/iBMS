@@ -21,7 +21,7 @@ jobs:
           lfs: true
       - name: Restore Library cache # Restore the Unity Library cache from ~/actions-runner/_cache/Library.
         run: |
-          if [ -d ~/actions-runner/_cache/Library ]; then
+          if [ -d ~/actions-runner/_cache/Library-${{ matrix.targetPlatform }}/ ]; then
             rsync -a --delete ~/actions-runner/_cache/Library-${{ matrix.targetPlatform }}/ Library/
           fi
       - uses: VioletXF/unity-builder@main
