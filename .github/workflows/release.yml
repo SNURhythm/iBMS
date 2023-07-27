@@ -19,11 +19,11 @@ jobs:
         with:
           fetch-depth: 1
           lfs: true
-      - uses: actions/cache@v3
-        with:
-          path: Library
-          key: Library-${{ matrix.targetPlatform }}
-          restore-keys: Library-
+      - name: Restore Library cache # Restore the Unity Library cache from ~/actions-runner/_cache/Library.
+        run: |
+          if [ -d ~/actions-runner/_cache/Library ]; then
+            rsync -a --delete ~/actions-runner/_cache/Library-${{ matrix.targetPlatform }}/ Library/
+          fi
       - uses: VioletXF/unity-builder@main
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -32,6 +32,10 @@ jobs:
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
           cacheUnityInstallationOnMac: true
+      - name: Cache Library # Cache the Unity Library folder to ~/actions-runner/_cache/Library.
+        run: |
+          mkdir -p ~/actions-runner/_cache
+          rsync -a --delete Library/ ~/actions-runner/_cache/Library-${{ matrix.targetPlatform }}/
       - name: Generate IPA
         if: matrix.targetPlatform == 'iOS'
         run: |
