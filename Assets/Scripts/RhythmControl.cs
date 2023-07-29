@@ -142,7 +142,7 @@ public class RhythmControl : MonoBehaviour
             }
 
             CheckPassedTimeline(currentDspTime);
-            // AutoPlay(GetCompensatedDspTimeMicro());
+            if(GameManager.Instance.AutoPlay) AutoPlay(GetCompensatedDspTimeMicro());
             // bgaPlayer.Update(GetCompensatedDspTimeMicro());
         }
 
@@ -279,7 +279,7 @@ public class RhythmControl : MonoBehaviour
                 var note = timeline.Notes[lane];
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
-                if (note.Wav != BMSParser.NoWav)
+                if (GameManager.Instance.KeySound && note.Wav != BMSParser.NoWav)
                 {
                     var thread = new System.Threading.Thread(() => system.playSound(wavSounds[note.Wav], channelGroup, false, out var channel));
                     thread.Start();
@@ -395,13 +395,17 @@ public class RhythmControl : MonoBehaviour
         Debug.Log("Play");
         parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
         {
-            // timeline.Notes.ForEach(note =>
-            // {
-            //     if (note == null || note.Wav == BMSParser.NoWav) return;
-            //     // Debug.Log(note.wav + "wav");
-            //     // Debug.Log("NoteTiming: " + timeline.timing / 1000);
-            //     ScheduleSound(timeline.Timing, note.Wav);
-            // });
+            if (!GameManager.Instance.KeySound)
+            {
+                timeline.Notes.ForEach(note =>
+                {
+                    if (note == null || note.Wav == BMSParser.NoWav) return;
+                    // Debug.Log(note.wav + "wav");
+                    // Debug.Log("NoteTiming: " + timeline.timing / 1000);
+                    ScheduleSound(timeline.Timing, note.Wav);
+                });
+            }
+
             timeline.BackgroundNotes.ForEach(note =>
             {
                 if (note == null || note.Wav == BMSParser.NoWav) return;

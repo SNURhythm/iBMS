@@ -55,6 +55,7 @@ public class Input : MonoBehaviour
 
     private void OnEvent(InputEventPtr eventPtr)
     {
+        if (GameManager.Instance.AutoPlay) return;
         if (!eventPtr.IsA<StateEvent>()) return;
         // get key
         foreach (var control in eventPtr.EnumerateChangedControls())
@@ -112,6 +113,7 @@ public class Input : MonoBehaviour
 
     private void FingerMove(Finger obj)
     {
+        if (GameManager.Instance.AutoPlay) return;
         if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
     obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
         // TODO: remove this
@@ -150,6 +152,7 @@ public class Input : MonoBehaviour
 
     private void FingerDown(Finger obj)
     {
+        if (GameManager.Instance.AutoPlay) return;
         if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
             obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
         if (Camera.main == null) return;
@@ -167,8 +170,9 @@ public class Input : MonoBehaviour
 
     private void FingerUp(Finger obj)
     {
+        if (GameManager.Instance.AutoPlay) return;
         if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
-    obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
+            obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
         var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
         if (laneNumber >= 0 && laneNumber < 8)
         {
