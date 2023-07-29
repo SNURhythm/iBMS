@@ -237,11 +237,11 @@ public class RhythmControl : MonoBehaviour
                         if (note == null) continue;
                         if (note is LongNote { IsTail: true })
                         {
-                            OnReleaseLane(note.Lane);
+                            ReleaseLane(note.Lane);
                         }
                         else
                         {
-                            OnPressLane(note.Lane);
+                            PressLane(note.Lane);
                         }
                         // Debug.Log($"Combo: {combo}");
                     }
@@ -260,7 +260,7 @@ public class RhythmControl : MonoBehaviour
         }
     }
 
-    private void OnPressLane(int lane)
+    public void PressLane(int lane)
     {
         Debug.Log("Press: " + lane);
         var measures = parser.GetChart().Measures;
@@ -279,7 +279,7 @@ public class RhythmControl : MonoBehaviour
                 var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
-                    
+
                     if (judgeResult.IsNotePlayed)
                     {
                         if (note is LongNote longNote)
@@ -289,7 +289,7 @@ public class RhythmControl : MonoBehaviour
                                 longNote.Press(GetCompensatedDspTimeMicro());
                             }
                             // LongNote Head's judgement is determined on release
-                            return; 
+                            return;
                         }
 
                         note.Press(GetCompensatedDspTimeMicro());
@@ -306,7 +306,7 @@ public class RhythmControl : MonoBehaviour
         }
     }
 
-    private void OnReleaseLane(int lane)
+    public void ReleaseLane(int lane)
     {
         Debug.Log("Release: " + lane);
         var measures = parser.GetChart().Measures;
@@ -322,7 +322,7 @@ public class RhythmControl : MonoBehaviour
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
                 var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
-                if (note is LongNote {IsTail: true} longNote )
+                if (note is LongNote { IsTail: true } longNote)
                 {
                     if (!longNote.Head.IsHolding) return;
                     // if judgement is not good/great/pgreat, it will be judged as bad
@@ -553,39 +553,9 @@ public class RhythmControl : MonoBehaviour
         system.getSoftwareFormat(out var sampleRate, out _, out _);
         return (ulong)(ms * sampleRate / 1000);
     }
-    int[] touchingFingers = new int[8] { -1, -1, -1, -1, -1, -1, -1, -1 };
-    public void FingerMove(Finger finger, int laneNumber)
-    {
-        // for (int i = 0; i < 8; i++)
-        // {
-        //     if (touchingFingers[i] == finger.index)
-        //     {
-        //         if (laneNumber != i)
-        //         {
-        //             FingerUp(finger, i);
-        //             FingerDown(finger, laneNumber);
-        //         }
-        //         break;
-        //     }
-        // }
-    }
 
-    public void FingerDown(Finger finger, int laneNumber)
-    {
-        if (touchingFingers[laneNumber] == -1)
-        {
-            OnPressLane(laneNumber);
-        }
-        touchingFingers[laneNumber] = finger.index;
-    }
-    public void FingerUp(Finger finger, int laneNumber)
-    {
-        if (touchingFingers[laneNumber] == finger.index)
-        {
-            touchingFingers[laneNumber] = -1;
-            OnReleaseLane(laneNumber);
-        }
-    }
+
+
 
     private void OnGUI()
     {
