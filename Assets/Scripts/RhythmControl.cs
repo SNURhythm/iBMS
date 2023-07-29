@@ -142,7 +142,7 @@ public class RhythmControl : MonoBehaviour
             }
 
             CheckPassedTimeline(currentDspTime);
-            AutoPlay(GetCompensatedDspTimeMicro());
+            // AutoPlay(GetCompensatedDspTimeMicro());
             // bgaPlayer.Update(GetCompensatedDspTimeMicro());
         }
 
