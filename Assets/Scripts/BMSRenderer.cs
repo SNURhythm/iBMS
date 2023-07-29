@@ -23,11 +23,13 @@ public class BMSRenderer : MonoBehaviour
     private int passedTimelineCount = 0;
     private int passedMeasureCount = 0;
     private List<LongNote> orphanLongNotes = new List<LongNote>();
-    private double currentBpm = 0;
+
     private double startBpm = 0;
     private long lastDrawTime = 0;
     private long deltaTime = 0;
-    private (double timing, double pos) lastBpmChange = (0.0, 0.0);
+
+    private TimeLine lastTimeline;
+
     private long greenNumber = 300;
     private long whiteNumber = 0;
     private float hiSpeed = 1;
@@ -40,25 +42,19 @@ public class BMSRenderer : MonoBehaviour
     public void Init(Chart chart)
     {
         this.chart = chart;
-        this.currentBpm = chart.Bpm;
         this.startBpm = chart.Bpm;
-        this.lastBpmChange = (0.0, 0.0);
+        this.lastTimeline = chart.Measures[0].Timelines[0];
 
-        double bpm = chart.Bpm;
-        (double timing, double pos) lastBpmChange = (0.0, 0.0);
+        TimeLine lastTimeline = chart.Measures[0].Timelines[0];
+        lastTimeline.Pos = 0.0;
 
         foreach (Measure measure in chart.Measures)
         {
-            measure.Pos = lastBpmChange.pos + (measure.Timing - lastBpmChange.timing) * bpm / chart.Bpm;
+            measure.Pos = lastTimeline.Pos + (measure.Timing - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Bpm;
             foreach (TimeLine timeline in measure.Timelines)
             {
-                timeline.Pos = lastBpmChange.pos + (timeline.Timing - lastBpmChange.timing) * bpm / chart.Bpm;
-                if (timeline.BpmChange)
-                {
-                    bpm = timeline.Bpm;
-                    lastBpmChange.timing = timeline.Timing;
-                    lastBpmChange.pos = timeline.Pos;
-                }
+                timeline.Pos = lastTimeline.Pos + (timeline.Timing - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Bpm;
+                lastTimeline = timeline;
             }
         }
     }
@@ -96,27 +92,41 @@ public class BMSRenderer : MonoBehaviour
     public void Draw(long currentTime)
     {
         deltaTime = currentTime - lastDrawTime;
-        double currentPos = lastBpmChange.pos + (currentTime - lastBpmChange.timing) * currentBpm / chart.Bpm;
 
         var measures = chart.Measures;
+
+        // update lastTimeline
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
             var isFirstMeasure = i == passedMeasureCount;
             var measure = measures[i];
+            if (measure.Timing > currentTime) break;
 
 
             for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
+                if (timeline.Timing > currentTime) break;
+                lastTimeline = timeline;
+            }
+        }
+
+        // draw notes
+        double currentPos = (currentTime < lastTimeline.Timing + lastTimeline.GetStopDuration()) ? lastTimeline.Pos
+                              : lastTimeline.Pos + (currentTime - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Bpm;
+
+        // Debug.Log($"lastTimeline.Timing: {lastTimeline.Timing}, lastTimtline.Pos: {lastTimeline.Pos}, currentTime: {currentTime}, currentPos: {currentPos}");
+
+        for (int i = passedMeasureCount; i < measures.Count; i++)
+        {
+            var isFirstMeasure = i == passedMeasureCount;
+            var measure = measures[i];
+
+            for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
+            {
+                var timeline = measure.Timelines[j];
+
                 var offset = timeline.Pos - currentPos;
-                if (offset <= 0 && timeline.BpmChange && !timeline.BpmChangeApplied)
-                {
-                    currentBpm = timeline.Bpm;
-                    lastBpmChange = (timeline.Timing, timeline.Pos);
-                    currentPos = lastBpmChange.pos + (currentTime - lastBpmChange.timing) * currentBpm / chart.Bpm;
-                    offset = timeline.Pos - currentPos;
-                    timeline.BpmChangeApplied = true;
-                }
 
                 if (IsOverUpperBound(offset)) break;
 

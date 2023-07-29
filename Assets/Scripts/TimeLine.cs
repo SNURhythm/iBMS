@@ -12,7 +12,8 @@ public class TimeLine
     public int BgaBase = -1;
     public int BgaLayer = -1;
     public int BgaPoor = -1;
-    public double PauseLength = 0;
+    public readonly List<Note> LandmineNotes;
+    public double StopLength = 0.0;
     public double Scroll = 1.0;
 
     public long Timing;
@@ -22,6 +23,7 @@ public class TimeLine
     {
         Notes = Enumerable.Repeat<Note>(null, lanes).ToList();
         InvisibleNotes = Enumerable.Repeat<Note>(null, lanes).ToList();
+        LandmineNotes = Enumerable.Repeat<Note>(null, lanes).ToList();
         BackgroundNotes = new List<Note>();
     }
 
@@ -40,11 +42,25 @@ public class TimeLine
         note.Timeline = this;
         return this;
     }
+    
+    public TimeLine SetLandmineNote(int lane, Note note)
+    {
+        LandmineNotes[lane] = note;
+        note.Lane = lane;
+        note.Timeline = this;
+        return this;
+    }
 
     public TimeLine AddBackgroundNote(Note note)
     {
         BackgroundNotes.Add(note);
         note.Timeline = this;
         return this;
+    }
+    
+    
+    public long GetStopDuration()
+    {
+        return (long)(240 * 1000 * 1000 / 192 * StopLength / Bpm);
     }
 }
