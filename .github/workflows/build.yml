@@ -1,6 +1,7 @@
 name: Build and Generate IPA
 
 on:
+  pull_request:
   push:
     branches:
       - main
