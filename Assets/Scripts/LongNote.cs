@@ -10,15 +10,15 @@ public class LongNote : Note
     public LongNote(int wav) : base(wav)
     {
     }
-    
-    
+
+
     public new void Press(long time)
     {
         Play(time);
         IsHolding = true;
         Tail.IsHolding = true;
     }
-    
+
     public void Release(long time)
     {
         Play(time);
@@ -26,12 +26,10 @@ public class LongNote : Note
         Head.IsHolding = false;
         ReleaseTime = time;
     }
-    
-    public void MissRelease(long time)
+
+    public void MissPress(long time)
     {
-        IsHolding = false;
-        Head.IsHolding = false;
-        ReleaseTime = time;
+
     }
 
 }

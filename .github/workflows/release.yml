@@ -1,0 +1,54 @@
+name: Build and Generate IPA
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  buildForAllSupportedPlatforms:
+    name: Build for ${{ matrix.targetPlatform }}
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        targetPlatform:
+          - iOS # Build an iOS player.
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          lfs: true
+      - name: Restore Library cache # Restore the Unity Library cache from ~/actions-runner/_cache/Library.
+        run: |
+          if [ -d ~/actions-runner/_cache/Library-${{ matrix.targetPlatform }}/ ]; then
+            rsync -a --delete ~/actions-runner/_cache/Library-${{ matrix.targetPlatform }}/ Library/
+          fi
+      - uses: VioletXF/unity-builder@main
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          cacheUnityInstallationOnMac: true
+      - name: Cache Library # Cache the Unity Library folder to ~/actions-runner/_cache/Library.
+        run: |
+          mkdir -p ~/actions-runner/_cache
+          rsync -a --delete Library/ ~/actions-runner/_cache/Library-${{ matrix.targetPlatform }}/
+      - name: Generate IPA
+        if: matrix.targetPlatform == 'iOS'
+        run: |
+          ls
+          cd build/iOS/iOS
+          mkdir archive
+          xcversion select 14.3.1
+          xcodebuild -scheme "Unity-iPhone" -target "Unity-iPhone" -sdk iphoneos -archivePath archive/iBMS.xcarchive -configuration Release archive CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          mkdir Payload
+          cp -r archive/iBMS.xcarchive/Products/Applications/iBMS.app/ ./Payload/iBMS.app
+          rm -f ./Payload/.DS_Store
+          zip -r iBMS.ipa ./Payload
+      - uses: actions/upload-artifact@v3
+        with:
+          name: IPA
+          path: build/iOS/iOS/iBMS.ipa
