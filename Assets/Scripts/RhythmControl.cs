@@ -260,10 +260,11 @@ public class RhythmControl : MonoBehaviour
         }
     }
 
-    public void PressLane(int lane)
+    public void PressLane(int lane, double inputDelay = 0)
     {
-        Debug.Log("Press: " + lane);
+        Debug.Log("Press: " + lane + ", " + inputDelay);
         var measures = parser.GetChart().Measures;
+        var pressedTime = GetCompensatedDspTimeMicro() - (long)(inputDelay * 1000000);
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
             var isFirstMeasure = i == passedMeasureCount;
@@ -272,11 +273,11 @@ public class RhythmControl : MonoBehaviour
             for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
-                if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
+                if (timeline.Timing < pressedTime - 200000) continue;
                 var note = timeline.Notes[lane];
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
-                var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
+                var judgeResult = judge.JudgeNow(note, pressedTime);
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
 
@@ -286,13 +287,13 @@ public class RhythmControl : MonoBehaviour
                         {
                             if (!longNote.IsTail)
                             {
-                                longNote.Press(GetCompensatedDspTimeMicro());
+                                longNote.Press(pressedTime);
                             }
                             // LongNote Head's judgement is determined on release
                             return;
                         }
 
-                        note.Press(GetCompensatedDspTimeMicro());
+                        note.Press(pressedTime);
                     }
                     latestJudgement = judgeResult.Judgement;
 
@@ -306,9 +307,10 @@ public class RhythmControl : MonoBehaviour
         }
     }
 
-    public void ReleaseLane(int lane)
+    public void ReleaseLane(int lane, double inputDelay = 0)
     {
         Debug.Log("Release: " + lane);
+        var releasedTime = GetCompensatedDspTimeMicro() - (long)(inputDelay * 1000000);
         var measures = parser.GetChart().Measures;
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
@@ -317,23 +319,23 @@ public class RhythmControl : MonoBehaviour
             for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
-                if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
+                if (timeline.Timing < releasedTime - 200000) continue;
                 var note = timeline.Notes[lane];
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
-                var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
+                var judgeResult = judge.JudgeNow(note, releasedTime);
                 if (note is LongNote { IsTail: true } longNote)
                 {
                     if (!longNote.Head.IsHolding) return;
                     // if judgement is not good/great/pgreat, it will be judged as bad
                     if (judgeResult.Judgement is Judgement.NONE or Judgement.KPOOR or Judgement.BAD)
                     {
-                        longNote.Release(GetCompensatedDspTimeMicro());
+                        longNote.Release(releasedTime);
                         latestJudgement = Judgement.BAD;
                         combo = 0;
                         return;
                     }
-                    longNote.Release(GetCompensatedDspTimeMicro());
+                    longNote.Release(releasedTime);
                     var headJudgeResult = judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
                     latestJudgement = headJudgeResult.Judgement;
                     if (headJudgeResult.ShouldComboBreak) combo = 0;
@@ -479,11 +481,11 @@ public class RhythmControl : MonoBehaviour
         Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
         if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
         {
-            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 0.0f);
+            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 1.0f);
         }
         else
         {
-            Invoke(nameof(StartMusic), 0.0f);
+            Invoke(nameof(StartMusic), 1.0f);
         }
     }
 

@@ -27,11 +27,13 @@ public class Input : MonoBehaviour
         Touch.onFingerDown += FingerDown;
         Touch.onFingerUp += FingerUp;
 
+
     }
 
-
-
-
+    private void FixedUpdate()
+    {
+        InputSystem.Update();
+    }
 
 
     private void OnEnable()
@@ -40,6 +42,7 @@ public class Input : MonoBehaviour
         TouchSimulation.Enable();
 
         eventListener = InputSystem.onEvent.ForDevice<Keyboard>().Call(OnEvent);
+        InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsInFixedUpdate;
     }
 
     private void OnDisable()
@@ -47,6 +50,7 @@ public class Input : MonoBehaviour
         EnhancedTouchSupport.Disable();
         TouchSimulation.Disable();
         eventListener.Dispose();
+        InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsInFixedUpdate;
     }
 
     private void OnEvent(InputEventPtr eventPtr)
@@ -59,6 +63,7 @@ public class Input : MonoBehaviour
             var keyboard = device as Keyboard;
             //get keycode
             var key = control as KeyControl;
+
             if (key == null) continue;
             var laneNumber = -1;
             switch (key.keyCode)
@@ -92,11 +97,12 @@ public class Input : MonoBehaviour
             {
                 if (key.IsPressed())
                 {
-                    rhythmControl.PressLane(laneNumber);
+                    Debug.Log("Event Delayed by" + (eventPtr.time - Time.realtimeSinceStartupAsDouble));
+                    rhythmControl.PressLane(laneNumber, Time.realtimeSinceStartupAsDouble - eventPtr.time);
                 }
                 else
                 {
-                    rhythmControl.ReleaseLane(laneNumber);
+                    rhythmControl.ReleaseLane(laneNumber, Time.realtimeSinceStartupAsDouble - eventPtr.time);
                 }
                 Debug.Log("Key " + key.keyCode + " " + key.IsPressed());
             }
