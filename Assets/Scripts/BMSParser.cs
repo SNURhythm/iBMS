@@ -116,7 +116,8 @@ public class BMSParser : IParser
                     var xx = line.Substring(4, 2);
                     var value = line.Substring(7);
                     ParseHeader(line.Substring(1, 3), xx, value); // TODO: refactor this shit
-                } else if (line.StartsWith("#BPM"))
+                }
+                else if (line.StartsWith("#BPM"))
                 {
                     // #BPMxx value or #BPM value
                     if (line.Substring(4).StartsWith(' '))
@@ -130,7 +131,7 @@ public class BMSParser : IParser
                         var value = line.Substring(7);
                         ParseHeader("BPM", xx, value);
                     }
-                    
+
                 }
                 else
                 {
@@ -152,8 +153,8 @@ public class BMSParser : IParser
         var lastMeasure = measures.Keys.Max();
 
         long timePassed = 0;
-        var bpm = chart.Bpm;
-        var currentBpm = bpm;
+
+        var currentBpm = chart.Bpm;
         var lastNote = new Note[TempKey];
         var lnStart = new LongNote[TempKey];
         for (var i = 0; i <= lastMeasure; i++)
@@ -247,7 +248,6 @@ public class BMSParser : IParser
                             timeline.Bpm = Convert.ToInt32(val, 16);
                             Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
                             timeline.BpmChange = true;
-                            currentBpm = timeline.Bpm;
 
 
                             break;
@@ -353,7 +353,6 @@ public class BMSParser : IParser
 
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
                 var interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
-                if (timeline.BpmChange) bpm = timeline.Bpm;
                 timePassed += (long)interval;
                 timeline.Timing = timePassed;
                 if (timeline.BpmChange) currentBpm = timeline.Bpm;
@@ -377,11 +376,11 @@ public class BMSParser : IParser
                 };
                 measure.Timelines.Add(timeline);
             }
-            
+
             chart.TotalLength = timePassed;
 
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
-            
+
         }
     }
 
@@ -427,7 +426,7 @@ public class BMSParser : IParser
     {
         return wavTable[id];
     }
-    
+
     public string GetBmpFileName(int id)
     {
         return bmpTable[id];
@@ -483,7 +482,7 @@ public class BMSParser : IParser
                 {
                     Debug.Log($"BPM: {DecodeBase36(xx)} = {double.Parse(value)}");
                     bpmTable[DecodeBase36(xx)] = double.Parse(value);
-                    
+
                 }
 
                 break;
@@ -521,7 +520,7 @@ public class BMSParser : IParser
                     Debug.LogWarning("WAV command requires two arguments");
                     break;
                 }
-                
+
                 bmpTable[DecodeBase36(xx)] = value;
                 if (xx == "00")
                 {

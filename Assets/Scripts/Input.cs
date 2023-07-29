@@ -97,14 +97,12 @@ public class Input : MonoBehaviour
             {
                 if (key.IsPressed())
                 {
-                    Debug.Log("Event Delayed by" + (eventPtr.time - Time.realtimeSinceStartupAsDouble));
                     rhythmControl.PressLane(laneNumber, Time.realtimeSinceStartupAsDouble - eventPtr.time);
                 }
                 else
                 {
                     rhythmControl.ReleaseLane(laneNumber, Time.realtimeSinceStartupAsDouble - eventPtr.time);
                 }
-                Debug.Log("Key " + key.keyCode + " " + key.IsPressed());
             }
 
         }
