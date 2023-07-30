@@ -73,6 +73,7 @@ public class RhythmControl : MonoBehaviour
     private BMSRenderer bmsRenderer;
     private BGAPlayer bgaPlayer;
     private GameState gameState = new GameState();
+    private bool IsPaused = false;
 
 
     private FMOD.System system;
@@ -104,7 +105,6 @@ public class RhythmControl : MonoBehaviour
         bmsRenderer = GetComponent<BMSRenderer>();
         LoadGame();
         Debug.Log("Load Complete");
-        channelGroup.setPaused(true);
     }
 
 
@@ -421,7 +421,7 @@ public class RhythmControl : MonoBehaviour
             }
         }));
         channelGroup.getDSPClock(out gameState.StartDSPClock, out _);
-        channelGroup.setPaused(false);
+        channelGroup.setPaused(IsPaused);
         Debug.Log("Play");
         parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
         {
@@ -450,7 +450,10 @@ public class RhythmControl : MonoBehaviour
                 ScheduleSound(timeline.Timing, note.Wav);
             });
         }));
-        gameState.IsPlaying = true;
+
+        
+        gameState.IsPlaying = !IsPaused;
+        
     }
 
     private async void LoadGame()
@@ -602,6 +605,7 @@ public class RhythmControl : MonoBehaviour
     
     public void RetryGame()
     {
+        IsPaused = false;
         PausePanel.SetActive(false);
         channelGroup.stop();
         gameState.IsPlaying = false;
@@ -622,6 +626,7 @@ public class RhythmControl : MonoBehaviour
 
     public void ResumeGame()
     {
+        IsPaused = false;
         channelGroup.setPaused(false);
         gameState.IsPlaying = true;
         bgaPlayer.ResumeAll(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
@@ -630,10 +635,23 @@ public class RhythmControl : MonoBehaviour
 
     public void PauseGame()
     {
+        IsPaused = true;
         channelGroup.setPaused(true);
         gameState.IsPlaying = false;
         bgaPlayer.PauseAll();
         PausePanel.SetActive(true);
+    }
+
+    void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+            PauseGame();
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (!hasFocus)
+            PauseGame();
     }
 
 
