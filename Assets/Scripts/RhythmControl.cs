@@ -243,6 +243,8 @@ public class RhythmControl : MonoBehaviour
                         else
                         {
                             PressLane(note.Lane);
+                            if(note is not LongNote)
+                                ReleaseLane(note.Lane);
 
                         }
                         // Debug.Log($"Combo: {combo}");
