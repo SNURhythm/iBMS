@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -148,8 +149,8 @@ public class Input : MonoBehaviour
         return (int)((lanePosition / 3.0f) + 7) % 8;
     }
 
-    int[] touchingFingers = new int[8] { -1, -1, -1, -1, -1, -1, -1, -1 };
-
+    private readonly Dictionary<int, int> fingerToLane = new();
+    private readonly int[] laneFingerCount = new int[8];
     private void FingerDown(Finger obj)
     {
         if (GameManager.Instance.AutoPlay) return;
@@ -158,29 +159,21 @@ public class Input : MonoBehaviour
         if (Camera.main == null) return;
 
         var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
-        if (laneNumber >= 0 && laneNumber < 8)
-        {
-            if (touchingFingers[laneNumber] == -1)
-            {
-                rhythmControl.PressLane(laneNumber);
-            }
-            touchingFingers[laneNumber] = obj.index;
-        }
+        if (laneNumber is < 0 or >= 8) return;
+        if (fingerToLane.ContainsKey(obj.index)) return;
+        fingerToLane.Add(obj.index, laneNumber);
+        laneFingerCount[laneNumber]++;
+        rhythmControl.PressLane(laneNumber);
     }
 
     private void FingerUp(Finger obj)
     {
         if (GameManager.Instance.AutoPlay) return;
-        if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
-            obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
-        var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
-        if (laneNumber >= 0 && laneNumber < 8)
-        {
-            if (touchingFingers[laneNumber] == obj.index)
-            {
-                touchingFingers[laneNumber] = -1;
-                rhythmControl.ReleaseLane(laneNumber);
-            }
-        }
+
+        if (!fingerToLane.ContainsKey(obj.index)) return;
+        var laneNumber = fingerToLane[obj.index];
+        fingerToLane.Remove(obj.index);
+        laneFingerCount[laneNumber]--;
+        if (laneFingerCount[laneNumber] == 0) rhythmControl.ReleaseLane(laneNumber);
     }
 }
