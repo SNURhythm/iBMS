@@ -24,11 +24,6 @@ public class Input : MonoBehaviour
     private void Start()
     {
         rhythmControl = GetComponent<RhythmControl>();
-        Touch.onFingerMove += FingerMove;
-        Touch.onFingerDown += FingerDown;
-        Touch.onFingerUp += FingerUp;
-
-
     }
 
     private void FixedUpdate()
@@ -44,6 +39,9 @@ public class Input : MonoBehaviour
 
         eventListener = InputSystem.onEvent.ForDevice<Keyboard>().Call(OnEvent);
         InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsInFixedUpdate;
+        Touch.onFingerMove += FingerMove;
+        Touch.onFingerDown += FingerDown;
+        Touch.onFingerUp += FingerUp;
     }
 
     private void OnDisable()
@@ -52,6 +50,9 @@ public class Input : MonoBehaviour
         TouchSimulation.Disable();
         eventListener.Dispose();
         InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsInFixedUpdate;
+        Touch.onFingerMove -= FingerMove;
+        Touch.onFingerDown -= FingerDown;
+        Touch.onFingerUp -= FingerUp;
     }
 
     private void OnEvent(InputEventPtr eventPtr)
@@ -155,7 +156,7 @@ public class Input : MonoBehaviour
     {
         if (GameManager.Instance.AutoPlay) return;
         if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
-            obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
+            obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > (float)Screen.height/2) return;
         if (Camera.main == null) return;
 
         var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);

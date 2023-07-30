@@ -31,5 +31,12 @@ public class LongNote : Note
     {
 
     }
+    
+    public new void Reset()
+    {
+        base.Reset();
+        IsHolding = false;
+        ReleaseTime = 0;
+    }
 
 }
