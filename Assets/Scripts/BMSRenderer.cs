@@ -7,6 +7,10 @@ public class BMSRenderer : MonoBehaviour
 {
     public GameObject LaneArea;
     public GameObject NoteArea;
+    public GameObject ParticlePrefab;
+    private LaneBeamEffect[] laneBeamEffects;
+    private GameObject[] lineBeams;
+    private GameObject[] keyBombs;
     private Chart chart;
     private readonly float laneWidth = 3.0f;
     private readonly float laneMargin = 0f;
@@ -70,27 +74,89 @@ public class BMSRenderer : MonoBehaviour
         squarePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
         squarePrefab.name = "Square";
         spawnPosition = NoteArea.transform.localScale.y;
-        var lane = new GameObject();
-        lane.SetActive(false);
+        var laneDivider = new GameObject();
+        laneDivider.SetActive(false);
 
-        lane.transform.localScale = new Vector3(0.1f, NoteArea.transform.localScale.y, 0);
-        lane.AddComponent<SpriteRenderer>();
-        lane.GetComponent<SpriteRenderer>().color = new Color(0.5f, 0.5f, 0.5f, 0.2f);
-        lane.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
+        laneDivider.transform.localScale = new Vector3(0.1f, NoteArea.transform.localScale.y, 0);
+        var laneDividerSr = laneDivider.AddComponent<SpriteRenderer>();
+        laneDividerSr.color = new Color(0.5f, 0.5f, 0.5f, 0.2f);
+        laneDividerSr.sprite = Resources.Load<Sprite>("Sprites/Square");
+        
+        var laneBeam = new GameObject();
+
+        laneBeam.SetActive(false);
+        var laneBeamSr = laneBeam.AddComponent<SpriteRenderer>();
+        laneBeamSr.sprite = Resources.Load<Sprite>("Sprites/GradientLine");
+        laneBeamSr.sortingLayerName = "LaneBeam";
+        laneBeamSr.drawMode = SpriteDrawMode.Sliced;
+        laneBeamSr.size = new Vector2(laneWidth, NoteArea.transform.localScale.y);
+
+
+        keyBombs = new GameObject[8];
+        laneBeamEffects = new LaneBeamEffect[8];
         for (int i = 0; i < 8; i++)
         {
-            if (i == 6) continue;
-            lane.name = "Lane";
-            var newLane = Instantiate(lane, LaneArea.transform);
-            newLane.SetActive(true);
-            newLane.transform.localPosition = new Vector3(LaneToLeft(i) + laneWidth / 2 - 0.05f, NoteArea.transform.localScale.y / 2 - judgeLineHeight / 2, 0);
+            if (i != 6)
+            {
+                laneDivider.name = "LaneDivider";
+                var newLaneDivider = Instantiate(laneDivider, LaneArea.transform);
+                newLaneDivider.SetActive(true);
+                newLaneDivider.transform.localPosition = new Vector3(LaneToLeft(i) + laneWidth / 2 - 0.05f,
+                    NoteArea.transform.localScale.y / 2 - judgeLineHeight / 2, 0);
+            }
+
+            // keyBomb particle
+            var keyBomb = Instantiate(ParticlePrefab, LaneArea.transform);
+            keyBomb.transform.localPosition = new Vector3(LaneToLeft(i), judgeLinePosition, 0);
+            keyBomb.transform.localScale = new Vector3(laneWidth, laneWidth, 1);
+            keyBomb.SetActive(false);
+            keyBomb.GetComponent<ParticleSystemRenderer>().sortingLayerName = "KeyBomb";
+            var ps = keyBomb.GetComponent<ParticleSystem>();
+            var main = ps.main;
+            main.duration = 0.1f;
+            main.simulationSpeed = 2;
+            keyBombs[i] = keyBomb;
+            
+            var newLaneBeam = Instantiate(laneBeam, LaneArea.transform);
+            newLaneBeam.SetActive(true);
+            newLaneBeam.transform.localPosition = new Vector3(LaneToLeft(i), NoteArea.transform.localScale.y / 2 - judgeLineHeight / 2, 0);
+            newLaneBeam.GetComponent<SpriteRenderer>().color = noteColors[i];
+            laneBeamEffects[i] = new LaneBeamEffect(newLaneBeam, 0.2f);
+
+
+
         }
 
     }
 
+    public void PlayKeyBomb(int laneNumber, Judgement judgement)
+    {
+        var keyBomb = keyBombs[laneNumber];
+        keyBomb.SetActive(true);
+        var ps = keyBomb.GetComponent<ParticleSystem>();
+
+        ps.Play();
+
+    }
+    
+    public void StartLaneBeamEffect(int laneNumber)
+    {
+        laneBeamEffects[laneNumber].StartEffect(0, true);
+    }
+    
+    public void ResumeLaneBeamEffect(int laneNumber)
+    {
+        laneBeamEffects[laneNumber].ResumeEffect();
+    }
+    
+    
 
     public void Draw(long currentTime)
     {
+        for (int i = 0; i < 8; i++)
+        {
+            laneBeamEffects[i].Tick();
+        }
         deltaTime = currentTime - lastDrawTime;
 
         var measures = chart.Measures;
@@ -144,11 +210,19 @@ public class BMSRenderer : MonoBehaviour
                     if (note.IsDead) continue;
                     if (shouldDestroyTimeline || note.IsPlayed)
                     {
+                        var dontDestroy = false;
                         if (note is LongNote ln)
                         {
                             if (ln.IsTail)
                             {
-                                orphanLongNotes.Remove(ln.Head);
+                                if (shouldDestroyTimeline)
+                                {
+                                    orphanLongNotes.Remove(ln.Head);
+                                }
+                                else
+                                {
+                                    dontDestroy = true;
+                                }
                             }
                             else
                             {
@@ -156,8 +230,13 @@ public class BMSRenderer : MonoBehaviour
                                 orphanLongNotes.Add(ln);
                             }
                         }
-                        note.IsDead = true;
-                        DestroyNote(note);
+
+                        if (!dontDestroy)
+                        {
+                            note.IsDead = true;
+                            DestroyNote(note);
+                        }
+
                         continue;
                     }
 
@@ -289,17 +368,22 @@ public class BMSRenderer : MonoBehaviour
 
     void DrawLongNote(LongNote head, double startOffset, double endOffset, bool tailOnly = false)
     {
-        if (head.Tail.IsPlayed) return;
+        //if (head.Tail.IsPlayed) return;
         var tail = head.Tail;
         var left = LaneToLeft(head.Lane);
         var startTop = OffsetToTop(startOffset);
 
         var endTop = OffsetToTop(endOffset);
-        if (head.IsHolding)
+        
+        if (head.IsPlayed)
         {
-            // TODO: Good start, early release -> tail should keep its height when it's released
+            if (endTop < judgeLineBottom)
+            {
+                DestroyNote(tail);
+                return;
+            }
 
-            startTop = Math.Min(judgeLineBottom, endTop - noteHeight);
+            startTop = Math.Max(judgeLineBottom, startTop);
         }
         var height = endTop - startTop;
         // draw start note, end note, and draw a bar between them
@@ -325,14 +409,22 @@ public class BMSRenderer : MonoBehaviour
                 noteObject.SetActive(true);
             }
         }
-
+        var alpha = 1.0f;
+        if (head.IsHolding)
+        {
+            alpha = 1.0f;
+        }
+        else
+        {
+            alpha = head.IsPlayed ? 0.2f : 0.5f;
+        }
         if (noteObjects.ContainsKey(tail))
         {
             var noteObject = noteObjects[tail];
             noteObject.transform.localPosition = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
             var color = noteColors[tail.Lane];
-            noteObject.GetComponent<SpriteRenderer>().color = new Color(color.r, color.g, color.b, head.IsHolding ? 1.0f : 0.5f);
+            noteObject.GetComponent<SpriteRenderer>().color = new Color(color.r, color.g, color.b, alpha);
         }
         else
         {
@@ -341,7 +433,8 @@ public class BMSRenderer : MonoBehaviour
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
             var spriteRenderer = noteObject.GetComponent<SpriteRenderer>();
             var color = noteColors[tail.Lane];
-            spriteRenderer.color = new Color(color.r, color.g, color.b, head.IsHolding ? 1.0f : 0.5f);
+
+            spriteRenderer.color = new Color(color.r, color.g, color.b, alpha);
             spriteRenderer.sortingLayerName = "Note";
             noteObject.name = "LongNoteTail";
             noteObjects.Add(tail, noteObject);

@@ -264,6 +264,7 @@ public class RhythmControl : MonoBehaviour
 
     public void PressLane(int lane, double inputDelay = 0)
     {
+        renderer.StartLaneBeamEffect(lane);
         // Debug.Log("Press: " + lane + ", " + inputDelay);
         var measures = parser.GetChart().Measures;
         var pressedTime = GetCompensatedDspTimeMicro() - (long)(inputDelay * 1000000);
@@ -291,6 +292,7 @@ public class RhythmControl : MonoBehaviour
 
                     if (judgeResult.IsNotePlayed)
                     {
+                        renderer.PlayKeyBomb(lane, judgeResult.Judgement);
                         if (note is LongNote longNote)
                         {
                             if (!longNote.IsTail)
@@ -302,6 +304,7 @@ public class RhythmControl : MonoBehaviour
                         }
 
                         note.Press(pressedTime);
+                        
                     }
                     latestJudgement = judgeResult.Judgement;
 
@@ -318,6 +321,7 @@ public class RhythmControl : MonoBehaviour
 
     public void ReleaseLane(int lane, double inputDelay = 0)
     {
+        renderer.ResumeLaneBeamEffect(lane);
         // Debug.Log("Release: " + lane);
         var releasedTime = GetCompensatedDspTimeMicro() - (long)(inputDelay * 1000000);
         var measures = parser.GetChart().Measures;

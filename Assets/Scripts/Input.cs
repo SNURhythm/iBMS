@@ -96,7 +96,7 @@ public class Input : MonoBehaviour
             }
             if (laneNumber >= 0 && laneNumber < 8)
             {
-                if (key.IsPressed())
+                if (!key.IsPressed())
                 {
                     rhythmControl.PressLane(laneNumber, Time.realtimeSinceStartupAsDouble - eventPtr.time);
                 }
