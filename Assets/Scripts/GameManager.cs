@@ -6,4 +6,6 @@ public class GameManager
     public static GameManager Instance => instance ??= new GameManager();
     
     public string BmsPath;
+    public bool AutoPlay = false;
+    public bool KeySound = true;
 }

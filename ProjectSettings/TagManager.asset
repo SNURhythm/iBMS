@@ -50,3 +50,6 @@ TagManager:
   - name: Note
     uniqueID: 745998105
     locked: 0
+  - name: KeyBomb
+    uniqueID: 1198937995
+    locked: 0

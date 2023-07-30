@@ -340,6 +340,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   LaneArea: {fileID: 426686326}
   NoteArea: {fileID: 2042234514}
+  ParticlePrefab: {fileID: 8038344524183138613, guid: 0277167a12290af47801444830a2be97, type: 3}
 --- !u!1 &1923171085
 GameObject:
   m_ObjectHideFlags: 0

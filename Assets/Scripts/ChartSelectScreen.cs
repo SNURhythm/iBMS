@@ -6,13 +6,16 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
+
 public class ChartSelectScreen : MonoBehaviour
 {
     [SerializeField]
     private GameObject ChartSelectButtonPrefab;
     [SerializeField]
     private GameObject ChartSelectButtonParent;
-    
+
+    [SerializeField] private Toggle AutoToggle;
+    [SerializeField] private Toggle KeySoundToggle;
     private GameObject[] ChartSelectButtons;
     // Start is called before the first frame update
     void Start()
@@ -48,6 +51,8 @@ public class ChartSelectScreen : MonoBehaviour
                     {
                         Debug.Log("Load chart: " + chartFile.FullName);
                         GameManager.Instance.BmsPath = chartFile.FullName;
+                        GameManager.Instance.AutoPlay = AutoToggle.isOn;
+                        GameManager.Instance.KeySound = KeySoundToggle.isOn;
                         // load scene
                         UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("LoadingScene");
                     });

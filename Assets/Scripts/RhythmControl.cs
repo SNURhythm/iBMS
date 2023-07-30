@@ -14,7 +14,8 @@ using Debug = UnityEngine.Debug;
 
 public class RhythmControl : MonoBehaviour
 {
-    private const int MaxChannels = 1024;
+    private const int MaxRealChannels = 512;
+    private const int MaxBgRealChannels = MaxRealChannels - 50;
     private const long TimeMargin = 5000000; // 5 seconds
     private Queue<(ulong dspclock, int wav)> soundQueue;
 
@@ -56,12 +57,12 @@ public class RhythmControl : MonoBehaviour
         RuntimeManager.StudioSystem.release();
         RuntimeManager.CoreSystem.release();
         Factory.System_Create(out system); // TODO: make system singleton
-        system.setSoftwareChannels(256);
+        system.setSoftwareChannels(MaxRealChannels);
         system.setSoftwareFormat(48000, SPEAKERMODE.DEFAULT, 0);
         // set buffer size
         var result = system.setDSPBufferSize(256, 4);
         // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
-        system.init(MaxChannels, INITFLAGS.NORMAL, IntPtr.Zero);
+        system.init(MaxRealChannels, INITFLAGS.NORMAL, IntPtr.Zero);
         soundQueue = new();
         wavSounds = new Sound[36 * 36];
         bgaPlayer = new();
@@ -113,7 +114,7 @@ public class RhythmControl : MonoBehaviour
         // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
         // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
-        var availableChannels = MaxChannels - playingChannels;
+        var availableChannels = MaxBgRealChannels - realChannels;
         if (availableChannels > 0 && soundQueue.Count > 0)
         {
             for (var i = 0; i < availableChannels; i++)
@@ -141,7 +142,7 @@ public class RhythmControl : MonoBehaviour
             }
 
             CheckPassedTimeline(currentDspTime);
-            // AutoPlay(GetCompensatedDspTimeMicro());
+            if(GameManager.Instance.AutoPlay) AutoPlay(GetCompensatedDspTimeMicro());
             // bgaPlayer.Update(GetCompensatedDspTimeMicro());
         }
 
@@ -237,11 +238,14 @@ public class RhythmControl : MonoBehaviour
                         if (note == null) continue;
                         if (note is LongNote { IsTail: true })
                         {
-                            OnReleaseLane(note.Lane);
+                            ReleaseLane(note.Lane);
                         }
                         else
                         {
-                            OnPressLane(note.Lane);
+                            PressLane(note.Lane);
+                            if(note is not LongNote)
+                                ReleaseLane(note.Lane);
+
                         }
                         // Debug.Log($"Combo: {combo}");
                     }
@@ -260,10 +264,12 @@ public class RhythmControl : MonoBehaviour
         }
     }
 
-    private void OnPressLane(int lane)
+    public void PressLane(int lane, double inputDelay = 0)
     {
-        Debug.Log("Press: " + lane);
+        renderer.StartLaneBeamEffect(lane);
+        // Debug.Log("Press: " + lane + ", " + inputDelay);
         var measures = parser.GetChart().Measures;
+        var pressedTime = GetCompensatedDspTimeMicro() - (long)(inputDelay * 1000000);
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
             var isFirstMeasure = i == passedMeasureCount;
@@ -272,43 +278,54 @@ public class RhythmControl : MonoBehaviour
             for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
-                if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
+                if (timeline.Timing < pressedTime - 200000) continue;
                 var note = timeline.Notes[lane];
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
-                var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
+                if (GameManager.Instance.KeySound && note.Wav != BMSParser.NoWav)
+                {
+                    var thread = new System.Threading.Thread(() => system.playSound(wavSounds[note.Wav], channelGroup, false, out var channel));
+                    thread.Start();
+
+                }
+                var judgeResult = judge.JudgeNow(note, pressedTime);
                 if (judgeResult.Judgement != Judgement.NONE)
                 {
-                    
+
                     if (judgeResult.IsNotePlayed)
                     {
+                        renderer.PlayKeyBomb(lane, judgeResult.Judgement);
                         if (note is LongNote longNote)
                         {
                             if (!longNote.IsTail)
                             {
-                                longNote.Press(GetCompensatedDspTimeMicro());
+                                longNote.Press(pressedTime);
                             }
                             // LongNote Head's judgement is determined on release
-                            return; 
+                            return;
                         }
 
-                        note.Press(GetCompensatedDspTimeMicro());
+                        note.Press(pressedTime);
+                        
                     }
                     latestJudgement = judgeResult.Judgement;
 
                     if (judgeResult.ShouldComboBreak) combo = 0;
                     else if (judgeResult.Judgement != Judgement.KPOOR)
                         combo++;
-                    return;
+
                 }
+                return;
 
             }
         }
     }
 
-    private void OnReleaseLane(int lane)
+    public void ReleaseLane(int lane, double inputDelay = 0)
     {
-        Debug.Log("Release: " + lane);
+        renderer.ResumeLaneBeamEffect(lane);
+        // Debug.Log("Release: " + lane);
+        var releasedTime = GetCompensatedDspTimeMicro() - (long)(inputDelay * 1000000);
         var measures = parser.GetChart().Measures;
         for (int i = passedMeasureCount; i < measures.Count; i++)
         {
@@ -317,23 +334,23 @@ public class RhythmControl : MonoBehaviour
             for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
-                if (timeline.Timing < GetCompensatedDspTimeMicro() - 200000) continue;
+                if (timeline.Timing < releasedTime - 200000) continue;
                 var note = timeline.Notes[lane];
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
-                var judgeResult = judge.JudgeNow(note, GetCompensatedDspTimeMicro());
-                if (note is LongNote {IsTail: true} longNote )
+                var judgeResult = judge.JudgeNow(note, releasedTime);
+                if (note is LongNote { IsTail: true } longNote)
                 {
                     if (!longNote.Head.IsHolding) return;
                     // if judgement is not good/great/pgreat, it will be judged as bad
                     if (judgeResult.Judgement is Judgement.NONE or Judgement.KPOOR or Judgement.BAD)
                     {
-                        longNote.Release(GetCompensatedDspTimeMicro());
+                        longNote.Release(releasedTime);
                         latestJudgement = Judgement.BAD;
                         combo = 0;
                         return;
                     }
-                    longNote.Release(GetCompensatedDspTimeMicro());
+                    longNote.Release(releasedTime);
                     var headJudgeResult = judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
                     latestJudgement = headJudgeResult.Judgement;
                     if (headJudgeResult.ShouldComboBreak) combo = 0;
@@ -354,7 +371,7 @@ public class RhythmControl : MonoBehaviour
     {
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
         var startDSP = startDSPClock + MsToDSP(timing / 1000);
-        if (playingChannels >= MaxChannels)
+        if (realChannels >= MaxBgRealChannels)
         {
             soundQueue.Enqueue((startDSP, wav)); // Too many channels playing, queue the sound
             return;
@@ -365,7 +382,6 @@ public class RhythmControl : MonoBehaviour
         // var lengthDSP = MsToDSP((double)length);
 
         // _channel.setMode(FMOD.MODE.VIRTUAL_PLAYFROMSTART);
-        if (startDSP == 0) startDSP = 1;
         channel.setDelay(startDSP, 0);
         channel.setPaused(false);
     }
@@ -385,13 +401,17 @@ public class RhythmControl : MonoBehaviour
         Debug.Log("Play");
         parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
         {
-            timeline.Notes.ForEach(note =>
+            if (!GameManager.Instance.KeySound)
             {
-                if (note == null || note.Wav == BMSParser.NoWav) return;
-                // Debug.Log(note.wav + "wav");
-                // Debug.Log("NoteTiming: " + timeline.timing / 1000);
-                ScheduleSound(timeline.Timing, note.Wav);
-            });
+                timeline.Notes.ForEach(note =>
+                {
+                    if (note == null || note.Wav == BMSParser.NoWav) return;
+                    // Debug.Log(note.wav + "wav");
+                    // Debug.Log("NoteTiming: " + timeline.timing / 1000);
+                    ScheduleSound(timeline.Timing, note.Wav);
+                });
+            }
+
             timeline.BackgroundNotes.ForEach(note =>
             {
                 if (note == null || note.Wav == BMSParser.NoWav) return;
@@ -479,11 +499,11 @@ public class RhythmControl : MonoBehaviour
         Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
         if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
         {
-            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 0.0f);
+            bgaPlayer.OnAllPlayersLoaded += (sender, args) => Invoke(nameof(StartMusic), 1.0f);
         }
         else
         {
-            Invoke(nameof(StartMusic), 0.0f);
+            Invoke(nameof(StartMusic), 1.0f);
         }
     }
 
@@ -542,50 +562,15 @@ public class RhythmControl : MonoBehaviour
         }
     }
 #endif
-    private ulong DSPToMs(ulong dspClock)
-    {
-        system.getSoftwareFormat(out var sampleRate, out _, out _);
-        return (ulong)((double)dspClock / sampleRate * 1000);
-    }
 
     private ulong MsToDSP(double ms)
     {
         system.getSoftwareFormat(out var sampleRate, out _, out _);
         return (ulong)(ms * sampleRate / 1000);
     }
-    int[] touchingFingers = new int[8] { -1, -1, -1, -1, -1, -1, -1, -1 };
-    public void FingerMove(Finger finger, int laneNumber)
-    {
-        // for (int i = 0; i < 8; i++)
-        // {
-        //     if (touchingFingers[i] == finger.index)
-        //     {
-        //         if (laneNumber != i)
-        //         {
-        //             FingerUp(finger, i);
-        //             FingerDown(finger, laneNumber);
-        //         }
-        //         break;
-        //     }
-        // }
-    }
 
-    public void FingerDown(Finger finger, int laneNumber)
-    {
-        if (touchingFingers[laneNumber] == -1)
-        {
-            OnPressLane(laneNumber);
-        }
-        touchingFingers[laneNumber] = finger.index;
-    }
-    public void FingerUp(Finger finger, int laneNumber)
-    {
-        if (touchingFingers[laneNumber] == finger.index)
-        {
-            touchingFingers[laneNumber] = -1;
-            OnReleaseLane(laneNumber);
-        }
-    }
+
+
 
     private void OnGUI()
     {

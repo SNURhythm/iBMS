@@ -1,13 +1,18 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using UnityEngine.InputSystem.EnhancedTouch;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.InputSystem.Utilities;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 public class Input : MonoBehaviour
 {
     [SerializeField] public GameObject LaneArea; // TODO: use config instead
     private RhythmControl rhythmControl;
-
+    private IDisposable eventListener;
     private void Awake()
     {
         // set polling frequency to 1000Hz
@@ -22,6 +27,13 @@ public class Input : MonoBehaviour
         Touch.onFingerMove += FingerMove;
         Touch.onFingerDown += FingerDown;
         Touch.onFingerUp += FingerUp;
+
+
+    }
+
+    private void FixedUpdate()
+    {
+        InputSystem.Update();
     }
 
 
@@ -29,17 +41,80 @@ public class Input : MonoBehaviour
     {
         EnhancedTouchSupport.Enable();
         TouchSimulation.Enable();
+
+        eventListener = InputSystem.onEvent.ForDevice<Keyboard>().Call(OnEvent);
+        InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsInFixedUpdate;
     }
 
     private void OnDisable()
     {
         EnhancedTouchSupport.Disable();
         TouchSimulation.Disable();
+        eventListener.Dispose();
+        InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsInFixedUpdate;
+    }
+
+    private void OnEvent(InputEventPtr eventPtr)
+    {
+        if (GameManager.Instance.AutoPlay) return;
+        if (!eventPtr.IsA<StateEvent>()) return;
+        // get key
+        foreach (var control in eventPtr.EnumerateChangedControls())
+        {
+            var device = control.device;
+            var keyboard = device as Keyboard;
+            //get keycode
+            var key = control as KeyControl;
+
+            if (key == null) continue;
+            var laneNumber = -1;
+            switch (key.keyCode)
+            {
+                case Key.A:
+                    laneNumber = 0;
+                    break;
+                case Key.S:
+                    laneNumber = 1;
+                    break;
+                case Key.D:
+                    laneNumber = 2;
+                    break;
+                case Key.Space:
+                    laneNumber = 3;
+                    break;
+                case Key.L:
+                    laneNumber = 4;
+                    break;
+                case Key.Semicolon:
+                    laneNumber = 5;
+                    break;
+                case Key.Quote:
+                    laneNumber = 6;
+                    break;
+                case Key.LeftShift:
+                    laneNumber = 7;
+                    break;
+            }
+            if (laneNumber >= 0 && laneNumber < 8)
+            {
+                if (!key.IsPressed())
+                {
+                    rhythmControl.PressLane(laneNumber, Time.realtimeSinceStartupAsDouble - eventPtr.time);
+                }
+                else
+                {
+                    rhythmControl.ReleaseLane(laneNumber, Time.realtimeSinceStartupAsDouble - eventPtr.time);
+                }
+            }
+
+        }
+
     }
 
 
     private void FingerMove(Finger obj)
     {
+        if (GameManager.Instance.AutoPlay) return;
         if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
     obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
         // TODO: remove this
@@ -59,9 +134,9 @@ public class Input : MonoBehaviour
         // circle.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
         // // change color
         // circle.GetComponent<Renderer>().material.color = Color.red;
-        var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
-        if (laneNumber >= 0 && laneNumber < 8)
-            rhythmControl.FingerMove(obj, laneNumber);
+        // var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
+        // if (laneNumber >= 0 && laneNumber < 8)
+        //     rhythmControl.FingerMove(obj, laneNumber);
     }
 
     private int ToLaneNumber(Vector2 screenPosition)
@@ -74,23 +149,31 @@ public class Input : MonoBehaviour
         return (int)((lanePosition / 3.0f) + 7) % 8;
     }
 
+    private readonly Dictionary<int, int> fingerToLane = new();
+    private readonly int[] laneFingerCount = new int[8];
     private void FingerDown(Finger obj)
     {
+        if (GameManager.Instance.AutoPlay) return;
         if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
             obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
         if (Camera.main == null) return;
 
         var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
-        if (laneNumber >= 0 && laneNumber < 8)
-            rhythmControl.FingerDown(obj, laneNumber);
+        if (laneNumber is < 0 or >= 8) return;
+        if (fingerToLane.ContainsKey(obj.index)) return;
+        fingerToLane.Add(obj.index, laneNumber);
+        laneFingerCount[laneNumber]++;
+        rhythmControl.PressLane(laneNumber);
     }
 
     private void FingerUp(Finger obj)
     {
-        if (obj.currentTouch.screenPosition.x < 0 || obj.currentTouch.screenPosition.x > Screen.width ||
-    obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
-        var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
-        if (laneNumber >= 0 && laneNumber < 8)
-            rhythmControl.FingerUp(obj, laneNumber);
+        if (GameManager.Instance.AutoPlay) return;
+
+        if (!fingerToLane.ContainsKey(obj.index)) return;
+        var laneNumber = fingerToLane[obj.index];
+        fingerToLane.Remove(obj.index);
+        laneFingerCount[laneNumber]--;
+        if (laneFingerCount[laneNumber] == 0) rhythmControl.ReleaseLane(laneNumber);
     }
 }
