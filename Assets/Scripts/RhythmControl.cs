@@ -56,10 +56,10 @@ public class RhythmControl : MonoBehaviour
     private const int MaxRealChannels = 512;
     private const int MaxBgRealChannels = MaxRealChannels - 50;
     private const long TimeMargin = 5000000; // 5 seconds
+    private byte[] metronomeBytes;
 
 
-
-    private Sound[] wavSounds;
+    private Dictionary<int, Sound> wavSounds = new();
 
 
     private ChannelGroup channelGroup;
@@ -100,9 +100,9 @@ public class RhythmControl : MonoBehaviour
         var result = system.setDSPBufferSize(256, 4);
         // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
         system.init(MaxRealChannels, INITFLAGS.NORMAL, IntPtr.Zero);
-        wavSounds = new Sound[36 * 36];
         bgaPlayer = new();
         bmsRenderer = GetComponent<BMSRenderer>();
+        metronomeBytes = Resources.Load<TextAsset>("Sfx/metronome").bytes;
         LoadGame();
         Debug.Log("Load Complete");
     }
@@ -401,6 +401,8 @@ public class RhythmControl : MonoBehaviour
             return;
         }
 
+        if (!wavSounds.ContainsKey(wav)) return;
+
         system.playSound(wavSounds[wav], channelGroup, true, out var channel);
         // this.wav[wav].getLength(out uint length, FMOD.TIMEUNIT.MS);
         // var lengthDSP = MsToDSP((double)length);
@@ -456,6 +458,20 @@ public class RhythmControl : MonoBehaviour
         
     }
 
+    private Sound GetMetronomeSound()
+    {
+
+        var createSoundExInfo = new CREATESOUNDEXINFO
+        {
+            length = (uint)metronomeBytes.Length,
+            cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
+        };
+        var result = system.createSound(metronomeBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+            ref createSoundExInfo, out var sound);
+        if (result != RESULT.OK) Debug.Log($"createSound failed. {result}");
+        return sound;
+    }
+
     private async void LoadGame()
     {
 
@@ -476,7 +492,8 @@ public class RhythmControl : MonoBehaviour
         {
 
             var basePath = Path.GetDirectoryName(GameManager.Instance.BmsPath);
-            parser.Parse(GameManager.Instance.BmsPath);
+            parser.Parse(GameManager.Instance.BmsPath, true);
+            wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
             for (var i = 0; i < 36 * 36; i++)
             {
                 var wavFileName = parser.GetWavFileName(i);
@@ -496,7 +513,8 @@ public class RhythmControl : MonoBehaviour
                             cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
                         };
                         result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
-                            ref createSoundExInfo, out wavSounds[i]);
+                            ref createSoundExInfo, out var sound);
+                        wavSounds[i] = sound;
                         wavSounds[i].setLoopCount(0);
                         // _system.playSound(wav[i], _channelGroup, true, out channel);
 
@@ -537,7 +555,7 @@ public class RhythmControl : MonoBehaviour
     private void UnloadGame()
     {
         // release all sounds
-        foreach (var sound in wavSounds)
+        foreach (var sound in wavSounds.Values)
         {
             sound.release();
         }
