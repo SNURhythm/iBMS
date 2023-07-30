@@ -4,9 +4,9 @@ using UnityEngine;
 
 public class LaneBeamEffect : Effect
 {
-    SpriteRenderer sprite;
-    Color color;
-    float duration;
+    private readonly SpriteRenderer sprite;
+    private Color color;
+    private readonly float duration;
     public LaneBeamEffect(GameObject lineBeam, float duration)
     {
         sprite = lineBeam.GetComponent<SpriteRenderer>();
@@ -20,17 +20,14 @@ public class LaneBeamEffect : Effect
     public override void Tick()
     {
         base.Tick();
-        float time = GetCurrentTime();
-        if (isStarted)
+        var time = GetCurrentTime();
+        if (!IsStarted) return;
+        if (time > duration)
         {
-            
-            if (time > duration)
-            {
-                time = duration;
-                StopEffect();
-            }
-            color.a = (1 - (time / duration)) * 0.3f;
-            sprite.color = color;
+            time = duration;
+            StopEffect();
         }
+        color.a = (1 - (time / duration)) * 0.3f;
+        sprite.color = color;
     }
 }

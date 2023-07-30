@@ -4,14 +4,14 @@ using UnityEngine;
 
 public class Effect
 {
-    protected bool isStarted = false;
-    protected bool isPaused = false;
+    protected bool IsStarted = false;
+    private bool isPaused = false;
     private float currentTime = 0f;
 
     // Update is called once per frame
     public virtual void Tick()
     {
-        if (isStarted && !isPaused)
+        if (IsStarted && !isPaused)
         {
             currentTime += Time.deltaTime;
         }
@@ -20,7 +20,7 @@ public class Effect
     public void StartEffect(float timeOffset, bool pause = false)
     {
         currentTime = timeOffset;
-        isStarted = true;
+        IsStarted = true;
         isPaused = pause;
     }
     public void PauseEffect()
@@ -33,7 +33,7 @@ public class Effect
     }
     public void StopEffect()
     {
-        isStarted = false;
+        IsStarted = false;
         currentTime = 0f;
     }
     public float GetCurrentTime()
