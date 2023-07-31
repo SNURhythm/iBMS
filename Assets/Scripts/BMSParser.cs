@@ -246,7 +246,7 @@ public class BMSParser : IParser
                             }
                             if (DecodeBase36(val) != 0)
                             {
-                                var bgNote = new Note(DecodeBase36(val));
+                                var bgNote = new Note(ToWaveId(val));
                                 timeline.AddBackgroundNote(bgNote);
                             }
 
@@ -309,14 +309,14 @@ public class BMSParser : IParser
                             }
                             else
                             {
-                                var note = new Note(ch);
+                                var note = new Note(ToWaveId(val));
                                 timeline.SetNote(laneNumber, note);
                                 lastNote[laneNumber] = note;
                             }
 
                             break;
                         case Channel.P1InvisibleKeyBase:
-                            var invNote = new Note(DecodeBase36(val));
+                            var invNote = new Note(ToWaveId(val));
                             timeline.SetInvisibleNote(laneNumber, invNote);
 
                             break;
@@ -326,7 +326,7 @@ public class BMSParser : IParser
                             {
                                 if (lnStart[laneNumber] == null)
                                 {
-                                    var ln = new LongNote(DecodeBase36(val));
+                                    var ln = new LongNote(ToWaveId(val));
                                     timeline.SetNote(
                                         laneNumber, ln
                                     );
@@ -396,6 +396,18 @@ public class BMSParser : IParser
         
         
 
+    }
+    
+    private int ToWaveId(string wav)
+    {
+        var decoded = DecodeBase36(wav);
+        // check range
+        if(decoded is < 0 or > 36 * 36 - 1)
+        {
+            return NoWav;
+        }
+        
+        return wavTable[decoded] == null ? NoWav : decoded;
     }
 
     private static class Channel
