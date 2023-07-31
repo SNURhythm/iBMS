@@ -31,17 +31,32 @@ class GameState
     
     public int AutoPlayedTimelines = 0;
     public int AutoPlayedMeasures = 0;
-
-    public void Init(Chart chart)
+    private long firstTiming = 0;
+    public void Init(Chart chart, bool addReadyMeasure)
     {
         Judge = new Judge(chart.Rank);
+        if (addReadyMeasure)
+        {
+            if(chart.Measures.Count > 1)
+                firstTiming = chart.Measures[1].Timelines[0].Timing;
+        }
     }
     
     public long GetCurrentDspTimeMicro(FMOD.System system, ChannelGroup channelGroup)
     {
         channelGroup.getDSPClock(out var dspClock, out var parentClock);
         system.getSoftwareFormat(out var sampleRate, out _, out _);
-        return (long)((double)dspClock / sampleRate * 1000000 - (double)StartDSPClock / sampleRate * 1000000);
+        var micro = (long)((double)dspClock / sampleRate * 1000000 - (double)StartDSPClock / sampleRate * 1000000);
+        if(micro>firstTiming)
+        { 
+            return micro;
+        }
+        else
+        {
+            SameDspClockCount = 0;
+            return firstTiming;
+        }
+        
     }
 
     public long GetCompensatedDspTimeMicro(FMOD.System system, ChannelGroup channelGroup)
@@ -80,6 +95,7 @@ public class RhythmControl : MonoBehaviour
     private FMOD.System system;
     private readonly CancellationTokenSource loadGameTokenSource = new();
     private Task loadGameTask;
+    private bool addReadyMeasure = true; // TODO: add to config
     
     private bool isLoaded = false;
     private void Awake()
@@ -498,7 +514,7 @@ public class RhythmControl : MonoBehaviour
         {
             var basePath = Path.GetDirectoryName(GameManager.Instance.BmsPath);
             ct.ThrowIfCancellationRequested();
-            parser.Parse(GameManager.Instance.BmsPath, true);
+            parser.Parse(GameManager.Instance.BmsPath, addReadyMeasure);
             ct.ThrowIfCancellationRequested();
             wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
 
@@ -559,7 +575,7 @@ public class RhythmControl : MonoBehaviour
             }
 
             bmsRenderer.Init(parser.GetChart());
-            gameState.Init(parser.GetChart());
+            gameState.Init(parser.GetChart(), addReadyMeasure);
             
             Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
             if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
@@ -679,7 +695,7 @@ public class RhythmControl : MonoBehaviour
             timeline.Notes.ForEach(note => note?.Reset());
         }));
 
-        gameState.Init(parser.GetChart());
+        gameState.Init(parser.GetChart(), addReadyMeasure);
 
         StartGame();
     }
@@ -737,7 +753,7 @@ public class RhythmControl : MonoBehaviour
         GUILayout.EndHorizontal();
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
-        if (parser.GetChart() != null)
+        if (parser.GetChart() != null && isLoaded)
             GUILayout.Label($"{gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000}/{(parser.GetChart().TotalLength + TimeMargin) / 1000000}", style);
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
