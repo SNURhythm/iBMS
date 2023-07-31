@@ -399,13 +399,13 @@ public class RhythmControl : MonoBehaviour
     {
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
         var startDSP = gameState.StartDSPClock + MsToDSP(timing / 1000);
+        if (!wavSounds.ContainsKey(wav)) return;
+        
         if (realChannels >= MaxBgRealChannels)
         {
             gameState.SoundQueue.Enqueue((startDSP, wav)); // Too many channels playing, queue the sound
             return;
         }
-
-        if (!wavSounds.ContainsKey(wav)) return;
 
         system.playSound(wavSounds[wav], channelGroup, true, out var channel);
         // this.wav[wav].getLength(out uint length, FMOD.TIMEUNIT.MS);
@@ -737,7 +737,7 @@ public class RhythmControl : MonoBehaviour
         GUILayout.EndHorizontal();
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
-        if (parser.GetChart() != null && isLoaded)
+        if (parser.GetChart() != null)
             GUILayout.Label($"{gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000}/{(parser.GetChart().TotalLength + TimeMargin) / 1000000}", style);
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
