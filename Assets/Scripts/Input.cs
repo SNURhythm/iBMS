@@ -35,7 +35,6 @@ public class Input : MonoBehaviour
     private void OnEnable()
     {
         EnhancedTouchSupport.Enable();
-        TouchSimulation.Enable();
 
         eventListener = InputSystem.onEvent.ForDevice<Keyboard>().Call(OnEvent);
         InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsInFixedUpdate;
@@ -47,7 +46,6 @@ public class Input : MonoBehaviour
     private void OnDisable()
     {
         EnhancedTouchSupport.Disable();
-        TouchSimulation.Disable();
         eventListener.Dispose();
         InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsInFixedUpdate;
         Touch.onFingerMove -= FingerMove;
