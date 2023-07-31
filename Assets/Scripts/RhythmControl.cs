@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using FMOD;
 using FMODUnity;
@@ -77,7 +78,10 @@ public class RhythmControl : MonoBehaviour
 
 
     private FMOD.System system;
-
+    private readonly CancellationTokenSource loadSoundTokenSource = new();
+    private Task loadSoundTask;
+    
+    private bool isLoaded = false;
     private void Awake()
     {
         Application.targetFrameRate = 120;
@@ -488,14 +492,18 @@ public class RhythmControl : MonoBehaviour
         system.getSoftwareFormat(out var frequency, out _, out _);
         system.getMasterChannelGroup(out channelGroup);
         var bgas = new List<(int id, string path)>();
-        await Task.Run(() =>
+        
+        CancellationToken ct = loadSoundTokenSource.Token;
+        loadSoundTask = Task.Run(() =>
         {
 
             var basePath = Path.GetDirectoryName(GameManager.Instance.BmsPath);
             parser.Parse(GameManager.Instance.BmsPath, true);
             wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
+
             for (var i = 0; i < 36 * 36; i++)
             {
+                ct.ThrowIfCancellationRequested();
                 var wavFileName = parser.GetWavFileName(i);
                 var bmpFileName = parser.GetBmpFileName(i);
                 if (wavFileName != null)
@@ -514,11 +522,16 @@ public class RhythmControl : MonoBehaviour
                         };
                         result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
                             ref createSoundExInfo, out var sound);
+                        if (result != RESULT.OK)
+                        {
+                            Debug.LogWarning($"createSound failed wav{i}. {result}");
+                            continue;
+                        }
                         wavSounds[i] = sound;
                         wavSounds[i].setLoopCount(0);
                         // _system.playSound(wav[i], _channelGroup, true, out channel);
 
-                        if (result != RESULT.OK) Debug.Log($"createSound failed wav{i}. {result}");
+                        
                     }
                 }
 
@@ -532,32 +545,56 @@ public class RhythmControl : MonoBehaviour
             Debug.Log($"Mixer blockSize        = {ms} ms");
             Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
             Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
-        });
-        foreach (var (id, path) in bgas)
+        }, ct);
+        try
         {
-            // We should load bga in main thread because it adds VideoPlayer on main camera.
-            // And it is OK to call this method synchronously because VideoPlayer loads video asynchronously.
-            bgaPlayer.Load(id, path);
-        }
-        bmsRenderer.Init(parser.GetChart());
-        gameState.Init(parser.GetChart());
-        Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
-        if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
+            await loadSoundTask;
+
+            foreach (var (id, path) in bgas)
+            {
+                // We should load bga in main thread because it adds VideoPlayer on main camera.
+                // And it is OK to call this method synchronously because VideoPlayer loads video asynchronously.
+                bgaPlayer.Load(id, path);
+            }
+
+            bmsRenderer.Init(parser.GetChart());
+            gameState.Init(parser.GetChart());
+            isLoaded = true;
+            Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
+            if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
+            {
+                bgaPlayer.OnAllPlayersLoaded += (sender, args) => StartGame();
+            }
+            else
+            {
+                StartGame();
+            }
+        } catch (OperationCanceledException)
         {
-            bgaPlayer.OnAllPlayersLoaded += (sender, args) => StartGame();
-        }
-        else
-        {
-            StartGame();
+            Debug.Log("Load sound canceled");
         }
     }
 
     private void UnloadGame()
     {
-        // release all sounds
-        foreach (var sound in wavSounds.Values)
+        isLoaded = false;
+        loadSoundTokenSource.Cancel();
+        try
         {
-            sound.release();
+            loadSoundTask?.Wait();
+        }
+        catch (AggregateException)
+        {
+            // ignored
+        }
+
+        // release all sounds
+        foreach (var (i, sound) in wavSounds)
+        {
+            if (sound.hasHandle())
+            {
+                sound.release();
+            }
         }
 
         // release system
@@ -694,7 +731,7 @@ public class RhythmControl : MonoBehaviour
         GUILayout.EndHorizontal();
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
-        if (parser.GetChart() != null)
+        if (parser.GetChart() != null && isLoaded)
             GUILayout.Label($"{gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000}/{(parser.GetChart().TotalLength + TimeMargin) / 1000000}", style);
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
