@@ -559,14 +559,19 @@ public class RhythmControl : MonoBehaviour
 
             bmsRenderer.Init(parser.GetChart());
             gameState.Init(parser.GetChart());
-            isLoaded = true;
+            
             Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
             if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
             {
-                bgaPlayer.OnAllPlayersLoaded += (sender, args) => StartGame();
+                bgaPlayer.OnAllPlayersLoaded += (sender, args) =>
+                {
+                    isLoaded = true;
+                    StartGame();
+                };
             }
             else
             {
+                isLoaded = true;
                 StartGame();
             }
         } catch (OperationCanceledException)
