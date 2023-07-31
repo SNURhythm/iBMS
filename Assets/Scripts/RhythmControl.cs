@@ -78,8 +78,8 @@ public class RhythmControl : MonoBehaviour
 
 
     private FMOD.System system;
-    private readonly CancellationTokenSource loadSoundTokenSource = new();
-    private Task loadSoundTask;
+    private readonly CancellationTokenSource loadGameTokenSource = new();
+    private Task loadGameTask;
     
     private bool isLoaded = false;
     private void Awake()
@@ -493,12 +493,13 @@ public class RhythmControl : MonoBehaviour
         system.getMasterChannelGroup(out channelGroup);
         var bgas = new List<(int id, string path)>();
         
-        CancellationToken ct = loadSoundTokenSource.Token;
-        loadSoundTask = Task.Run(() =>
+        CancellationToken ct = loadGameTokenSource.Token;
+        loadGameTask = Task.Run(() =>
         {
-
             var basePath = Path.GetDirectoryName(GameManager.Instance.BmsPath);
+            ct.ThrowIfCancellationRequested();
             parser.Parse(GameManager.Instance.BmsPath, true);
+            ct.ThrowIfCancellationRequested();
             wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
 
             for (var i = 0; i < 36 * 36; i++)
@@ -548,7 +549,7 @@ public class RhythmControl : MonoBehaviour
         }, ct);
         try
         {
-            await loadSoundTask;
+            await loadGameTask;
 
             foreach (var (id, path) in bgas)
             {
@@ -576,17 +577,17 @@ public class RhythmControl : MonoBehaviour
             }
         } catch (OperationCanceledException)
         {
-            Debug.Log("Load sound canceled");
+            Debug.Log("Load game canceled");
         }
     }
 
     private void UnloadGame()
     {
         isLoaded = false;
-        loadSoundTokenSource.Cancel();
+        loadGameTokenSource.Cancel();
         try
         {
-            loadSoundTask?.Wait();
+            loadGameTask?.Wait();
         }
         catch (AggregateException)
         {
