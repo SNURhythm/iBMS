@@ -3,8 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Drawing;
+
 using UnityEngine;
 using UnityEngine.UI;
+using Touch = UnityEngine.Touch;
+using FFmpeg.AutoGen;
 
 
 public class ChartSelectScreen : MonoBehaviour
@@ -20,7 +24,12 @@ public class ChartSelectScreen : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-
+        if (Application.platform == RuntimePlatform.IPhonePlayer)
+        {
+            ffmpeg.RootPath = Application.dataPath + "/Binaries/iOS/ffmpeg";
+            ffmpeg.avdevice_register_all();
+            DecodeAllFramesToImages(AVHWDeviceType.AV_HWDEVICE_TYPE_NONE);
+        }
     }
 
     private void OnEnable()
@@ -57,6 +66,7 @@ public class ChartSelectScreen : MonoBehaviour
                         UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("LoadingScene");
                     });
                 }
+                
             });
         }
     }
@@ -66,4 +76,62 @@ public class ChartSelectScreen : MonoBehaviour
     {
         
     }
+
+    private static unsafe void DecodeAllFramesToImages(AVHWDeviceType HWDevice)
+    {
+        // decode all frames from url, please not it might local resorce, e.g. string url = "../../sample_mpeg4.mp4";
+        
+        var url = "http://clips.vorwaerts-gmbh.de/big_buck_bunny.mp4"; // be advised this file holds 1440 frames
+        using var vsd = new VideoStreamDecoder(url, HWDevice);
+
+        Console.WriteLine($"codec name: {vsd.CodecName}");
+
+        var info = vsd.GetContextInfo();
+        info.ToList().ForEach(x => Console.WriteLine($"{x.Key} = {x.Value}"));
+
+        var sourceSize = vsd.FrameSize;
+        var sourcePixelFormat = HWDevice == AVHWDeviceType.AV_HWDEVICE_TYPE_NONE
+            ? vsd.PixelFormat
+            : GetHWPixelFormat(HWDevice);
+        var destinationSize = sourceSize;
+        var destinationPixelFormat = AVPixelFormat.AV_PIX_FMT_BGR24;
+        using var vfc = new VideoFrameConverter(sourceSize, sourcePixelFormat, destinationSize, destinationPixelFormat);
+
+        var frameNumber = 0;
+
+        while (vsd.TryDecodeNextFrame(out var frame))
+        {
+            var convertedFrame = vfc.Convert(frame);
+
+            // using (var bitmap = new Bitmap(convertedFrame.width,
+            //            convertedFrame.height,
+            //            convertedFrame.linesize[0],
+            //            PixelFormat.Format24bppRgb,
+            //            (IntPtr)convertedFrame.data[0]))
+            //     bitmap.Save($"frames/frame.{frameNumber:D8}.jpg", ImageFormat.Jpeg);
+
+            Debug.Log($"frame: {frameNumber}");
+            frameNumber++;
+        }
+    }
+    private static AVPixelFormat GetHWPixelFormat(AVHWDeviceType hWDevice)
+    {
+        return hWDevice switch
+        {
+            AVHWDeviceType.AV_HWDEVICE_TYPE_NONE => AVPixelFormat.AV_PIX_FMT_NONE,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_VDPAU => AVPixelFormat.AV_PIX_FMT_VDPAU,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_CUDA => AVPixelFormat.AV_PIX_FMT_CUDA,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_VAAPI => AVPixelFormat.AV_PIX_FMT_VAAPI,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_DXVA2 => AVPixelFormat.AV_PIX_FMT_NV12,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_QSV => AVPixelFormat.AV_PIX_FMT_QSV,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX => AVPixelFormat.AV_PIX_FMT_VIDEOTOOLBOX,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA => AVPixelFormat.AV_PIX_FMT_NV12,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_DRM => AVPixelFormat.AV_PIX_FMT_DRM_PRIME,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_OPENCL => AVPixelFormat.AV_PIX_FMT_OPENCL,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_MEDIACODEC => AVPixelFormat.AV_PIX_FMT_MEDIACODEC,
+            _ => AVPixelFormat.AV_PIX_FMT_NONE
+        };
+    }
+
+
 }
