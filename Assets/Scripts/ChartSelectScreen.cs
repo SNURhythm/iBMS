@@ -27,7 +27,6 @@ public class ChartSelectScreen : MonoBehaviour
         if (Application.platform == RuntimePlatform.IPhonePlayer)
         {
             ffmpeg.RootPath = Application.dataPath + "/Binaries/iOS/ffmpeg";
-            ffmpeg.avdevice_register_all();
             DecodeAllFramesToImages(AVHWDeviceType.AV_HWDEVICE_TYPE_NONE);
         }
     }
