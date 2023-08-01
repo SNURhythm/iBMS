@@ -187,7 +187,7 @@ public class RhythmControl : MonoBehaviour
 
             CheckPassedTimeline(currentDspTime);
             if(GameManager.Instance.AutoPlay) AutoPlay(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
-            // bgaPlayer.Update(GetCompensatedDspTimeMicro());
+            bgaPlayer.Update(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
         }
 
 
@@ -554,7 +554,7 @@ public class RhythmControl : MonoBehaviour
 
                 if (bmpFileName != null)
                 {
-                    bgas.Add((i, basePath + bmpFileName));
+                    bgas.Add((i, basePath + "/" + bmpFileName));
                 }
             }
             var ms = blockSize * 1000.0f / frequency;
@@ -688,6 +688,7 @@ public class RhythmControl : MonoBehaviour
         gameState.IsPlaying = false;
         gameState = new GameState();
         bmsRenderer.Reset();
+        bgaPlayer.Reset();
         System.GC.Collect();
 
         parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
