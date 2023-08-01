@@ -9,8 +9,9 @@ using UnityEngine;
 using UnityEngine.UI;
 using Touch = UnityEngine.Touch;
 using FFmpeg.AutoGen;
+using UnityEngine.Video;
 
-
+using DirectShowLib;
 public class ChartSelectScreen : MonoBehaviour
 {
     [SerializeField]
@@ -24,11 +25,19 @@ public class ChartSelectScreen : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        Video
+        DirectShowLib.reader
         if (Application.platform == RuntimePlatform.IPhonePlayer)
         {
             ffmpeg.RootPath = Application.dataPath + "/Binaries/iOS/ffmpeg";
             DecodeAllFramesToImages(AVHWDeviceType.AV_HWDEVICE_TYPE_NONE);
         }
+        else
+        {
+            ffmpeg.RootPath = Application.dataPath + "/Binaries/Windows/ffmpeg";
+            DecodeAllFramesToImages(AVHWDeviceType.AV_HWDEVICE_TYPE_NONE);
+        }
+        VideoFileReader reader = new VideoFileReader();
     }
 
     private void OnEnable()
