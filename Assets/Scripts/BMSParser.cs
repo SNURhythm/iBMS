@@ -152,7 +152,7 @@ public class BMSParser : IParser
         br?.Close();
         var lastMeasure = measures.Keys.Max();
 
-        long timePassed = 0;
+        double timePassed = 0;
 
         var currentBpm = chart.Bpm;
         var lastNote = new Note[TempKey];
@@ -346,15 +346,15 @@ public class BMSParser : IParser
 
 
             var lastPosition = 0.0;
-            measure.Timing = timePassed;
+            measure.Timing = (long)timePassed;
             chart.Measures.Add(measure);
             foreach (var (position, timeline) in timelines)
             {
 
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
-                var interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
-                timePassed += (long)interval;
-                timeline.Timing = timePassed;
+                double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
+                timePassed += interval;
+                timeline.Timing = (long)timePassed;
                 if (timeline.BpmChange) currentBpm = timeline.Bpm;
                 else timeline.Bpm = currentBpm;
 
@@ -363,7 +363,7 @@ public class BMSParser : IParser
                 measure.Timelines.Add(timeline);
                 timePassed += timeline.GetStopDuration();
                 lastPosition = position;
-                if (timeline.Notes.Count > 0) chart.PlayLength = timePassed;
+                if (timeline.Notes.Count > 0) chart.PlayLength = (long)timePassed;
                 lastPosition = position;
             }
 
@@ -371,13 +371,13 @@ public class BMSParser : IParser
             {
                 var timeline = new TimeLine(TempKey)
                 {
-                    Timing = timePassed,
+                    Timing = (long)timePassed,
                     Bpm = currentBpm
                 };
                 measure.Timelines.Add(timeline);
             }
 
-            chart.TotalLength = timePassed;
+            chart.TotalLength = (long)timePassed;
 
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
 
