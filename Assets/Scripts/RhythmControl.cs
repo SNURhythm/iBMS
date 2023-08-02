@@ -480,6 +480,7 @@ public class RhythmControl : MonoBehaviour
                 if (bmpFileName != null)
                 {
                     bgas.Add((i, basePath + bmpFileName));
+                    bgas.Add((i, basePath + "/" + bmpFileName));
                 }
             }
             var ms = blockSize * 1000.0f / frequency;
@@ -568,9 +569,8 @@ public class RhythmControl : MonoBehaviour
         system.getSoftwareFormat(out var sampleRate, out _, out _);
         return (ulong)(ms * sampleRate / 1000);
     }
-
-
-
+    
+    
 
     private void OnGUI()
     {
