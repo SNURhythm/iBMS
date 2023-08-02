@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
+
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,6 +15,8 @@ using PLMpegSharp.Container;
 
 public class ChartSelectScreen : MonoBehaviour
 {
+    public Renderer renderer;
+    public RenderTexture renderTexture;
     [SerializeField]
     private GameObject ChartSelectButtonPrefab;
     [SerializeField]
@@ -23,54 +25,17 @@ public class ChartSelectScreen : MonoBehaviour
     [SerializeField] private Toggle AutoToggle;
     [SerializeField] private Toggle KeySoundToggle;
     private GameObject[] ChartSelectButtons;
+
     // Start is called before the first frame update
     void Start()
     {
-        DataBuffer buffer =
-            DataBuffer.CreateWithFilename(Application.persistentDataPath + "/take003/bga_take.mpg");
-        VideoDecoder decoder = new VideoDecoder(buffer);
 
-        // Task.Run(() =>
-        // {
-
-            var current = 0;
-
-
-            var startTime = DateTime.Now;
-            Debug.Log("gogogogo");
-            while (decoder.HasEnded == false)
-            {
-
-                Frame frame = decoder.Decode();
-                try
-                {
-                    byte[] data = new byte[frame.Width * frame.Height * 3];
-                    frame.ToRGB(data, decoder.Width * 3);
-                    // Texture2D texture = new Texture2D(frame.Width, frame.Height, TextureFormat.RGB24, false);
-                    // texture.LoadRawTextureData(data);
-                    // texture.Apply();
-                    // save as png
-                    // byte[] bytes = texture.EncodeToPNG();
-                    //
-                    // File.WriteAllBytes(Application.persistentDataPath + "/take003/frames/bga_take_" + current + ".png",
-                    //     bytes);
-                }
-                catch (Exception e)
-                {
-                    Debug.Log(e);
-                }
-
-                current++;
-
-
-            }
-
-            Debug.Log("MPGDecodeTime: " + (DateTime.Now - startTime).TotalMilliseconds);
 
         // });
 
 
     }
+    
 
     private void OnEnable()
     {
@@ -113,6 +78,10 @@ public class ChartSelectScreen : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+        // render the video
+
+
+
+
     }
 }

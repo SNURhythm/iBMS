@@ -519,7 +519,7 @@ Camera:
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
-  orthographic: 1
+  orthographic: 0
   orthographic size: 5
   m_Depth: -1
   m_CullingMask:
@@ -590,7 +590,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 50}
+  m_SizeDelta: {x: 1366, y: 50}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &340804843
 MonoBehaviour:
@@ -779,6 +779,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7ac10ab0f47a5d74f8b3adc58669f796, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  renderer: {fileID: 0}
+  renderTexture: {fileID: 8400000, guid: 881966b40995889489cd992aceb65d0d, type: 2}
   ChartSelectButtonPrefab: {fileID: 4816373926751632270, guid: 191cf588c51a9fb4cbe9abe1bbc22638, type: 3}
   ChartSelectButtonParent: {fileID: 38580827}
   AutoToggle: {fileID: 340804844}
@@ -1657,7 +1659,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 0.392}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.02745098}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
