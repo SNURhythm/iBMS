@@ -25,34 +25,35 @@ public class ChartSelectScreen : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+
         DataBuffer buffer =
             DataBuffer.CreateWithFilename(@"C:\Users\XF\AppData\LocalLow\SNURhythm\iBMS\take003\bga_take.mpg");
         VideoDecoder decoder = new VideoDecoder(buffer);
         var current = 0;
 
-        Task.Run(() =>
-        {
+      
             var startTime = DateTime.Now;
             while (decoder.HasEnded == false)
             {
 
                 Frame frame = decoder.Decode();
 
-                // byte[] data = new byte[frame.Width * frame.Height * 3];
-                // frame.ToRGB(data, decoder.Width * 3);
-                // Texture2D texture = new Texture2D(frame.Width, frame.Height, TextureFormat.ARGB32, false);
-                // texture.LoadRawTextureData(data);
-                // texture.Apply();
-                // // save as png
-                // byte[] bytes = texture.EncodeToPNG();
-                // File.WriteAllBytes(@"C:\Users\XF\AppData\LocalLow\SNURhythm\iBMS\take003\frames\bga_take_" + current + "_"+frame.Time*1000+ ".png", bytes);
-                // current++;
+                byte[] data = new byte[frame.Width * frame.Height * 4];
+                frame.ToARGB(data, decoder.Width * 4);
+                Texture2D texture = new Texture2D(frame.Width, frame.Height, TextureFormat.ARGB32, false);
+                texture.LoadRawTextureData(data);
+                texture.Apply();
+                // save as png
+                byte[] bytes = texture.EncodeToPNG();
+                File.WriteAllBytes(@"C:\Users\XF\AppData\LocalLow\SNURhythm\iBMS\take003\frames\bga_take_" + current + "_"+frame.Time*1000+ ".png", bytes);
+                current++;
+                
                 if (current == 300) break;
 
             }
             Debug.Log("Time: " + (DateTime.Now - startTime).TotalMilliseconds);
 
-        });
+
 
 
     }
