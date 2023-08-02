@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -25,35 +26,48 @@ public class ChartSelectScreen : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-
         DataBuffer buffer =
-            DataBuffer.CreateWithFilename(@"C:\Users\XF\AppData\LocalLow\SNURhythm\iBMS\take003\bga_take.mpg");
+            DataBuffer.CreateWithFilename(Application.persistentDataPath + "/take003/bga_take.mpg");
         VideoDecoder decoder = new VideoDecoder(buffer);
-        var current = 0;
 
-      
+        // Task.Run(() =>
+        // {
+
+            var current = 0;
+
+
             var startTime = DateTime.Now;
+            Debug.Log("gogogogo");
             while (decoder.HasEnded == false)
             {
 
                 Frame frame = decoder.Decode();
+                try
+                {
+                    byte[] data = new byte[frame.Width * frame.Height * 3];
+                    frame.ToRGB(data, decoder.Width * 3);
+                    // Texture2D texture = new Texture2D(frame.Width, frame.Height, TextureFormat.RGB24, false);
+                    // texture.LoadRawTextureData(data);
+                    // texture.Apply();
+                    // save as png
+                    // byte[] bytes = texture.EncodeToPNG();
+                    //
+                    // File.WriteAllBytes(Application.persistentDataPath + "/take003/frames/bga_take_" + current + ".png",
+                    //     bytes);
+                }
+                catch (Exception e)
+                {
+                    Debug.Log(e);
+                }
 
-                byte[] data = new byte[frame.Width * frame.Height * 4];
-                frame.ToARGB(data, decoder.Width * 4);
-                Texture2D texture = new Texture2D(frame.Width, frame.Height, TextureFormat.ARGB32, false);
-                texture.LoadRawTextureData(data);
-                texture.Apply();
-                // save as png
-                byte[] bytes = texture.EncodeToPNG();
-                File.WriteAllBytes(@"C:\Users\XF\AppData\LocalLow\SNURhythm\iBMS\take003\frames\bga_take_" + current + "_"+frame.Time*1000+ ".png", bytes);
                 current++;
-                
-                if (current == 300) break;
+
 
             }
-            Debug.Log("Time: " + (DateTime.Now - startTime).TotalMilliseconds);
 
+            Debug.Log("MPGDecodeTime: " + (DateTime.Now - startTime).TotalMilliseconds);
 
+        // });
 
 
     }
