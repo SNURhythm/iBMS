@@ -14,6 +14,7 @@ using Debug = UnityEngine.Debug;
 
 public class RhythmControl : MonoBehaviour
 {
+    public BGAPlayer bgaPlayer;
     private const int MaxRealChannels = 512;
     private const int MaxBgRealChannels = MaxRealChannels - 50;
     private const long TimeMargin = 5000000; // 5 seconds
@@ -33,7 +34,7 @@ public class RhythmControl : MonoBehaviour
     private Sound music;
     private BMSParser parser;
     private BMSRenderer renderer;
-    private BGAPlayer bgaPlayer;
+
     private Judge judge;
 
     private ulong startDSPClock;
@@ -65,7 +66,6 @@ public class RhythmControl : MonoBehaviour
         system.init(MaxRealChannels, INITFLAGS.NORMAL, IntPtr.Zero);
         soundQueue = new();
         wavSounds = new Sound[36 * 36];
-        bgaPlayer = new();
         renderer = GetComponent<BMSRenderer>();
         LoadGame();
         Debug.Log("Load Complete");
@@ -143,7 +143,7 @@ public class RhythmControl : MonoBehaviour
 
             CheckPassedTimeline(currentDspTime);
             if(GameManager.Instance.AutoPlay) AutoPlay(GetCompensatedDspTimeMicro());
-            // bgaPlayer.Update(GetCompensatedDspTimeMicro());
+            bgaPlayer.Draw(GetCompensatedDspTimeMicro());
         }
 
 
@@ -479,7 +479,6 @@ public class RhythmControl : MonoBehaviour
 
                 if (bmpFileName != null)
                 {
-                    bgas.Add((i, basePath + bmpFileName));
                     bgas.Add((i, basePath + "/" + bmpFileName));
                 }
             }

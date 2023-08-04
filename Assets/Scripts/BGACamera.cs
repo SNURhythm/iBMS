@@ -59,7 +59,7 @@ public class BGACamera : MonoBehaviour
 
 
         }
-        texture = new Texture2D(width, height, TextureFormat.RGB24, false);
+        
 
         Debug.Log("MPGDecodeTime: " + (DateTime.Now - startTime).TotalMilliseconds);
 
