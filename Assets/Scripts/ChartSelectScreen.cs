@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.InputSystem.EnhancedTouch;
 using UnityEngine.UI;
+using Touch = UnityEngine.Touch;
 
 
 public class ChartSelectScreen : MonoBehaviour
@@ -22,9 +24,12 @@ public class ChartSelectScreen : MonoBehaviour
     {
 
     }
-
+    
     private void OnEnable()
     {
+
+        TouchSimulation.Enable();
+
         // NOTE: This would not work on Android but it's fine for now since we'll not be using StreamingAssets on release
         var info = new DirectoryInfo(Application.persistentDataPath);
         var fileInfo = info.GetDirectories();

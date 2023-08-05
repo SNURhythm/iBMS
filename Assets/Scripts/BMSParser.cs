@@ -57,6 +57,7 @@ public class BMSParser : IParser
     */
     private const int TempKey = 8;
     public const int NoWav = -1;
+    public const int MetronomeWav = -2;
 
 
     public const int Scroll = 1020;
@@ -86,11 +87,15 @@ public class BMSParser : IParser
     private Dictionary<int, Dictionary<double, TimeLine>> sections;
 
 
-    public void Parse(string path)
+    public void Parse(string path, bool addReadyMeasure = false)
     {
         // <measure number, (channel, data)>
         Dictionary<int, List<(int channel, string data)>> measures = new();
-
+        if (addReadyMeasure)
+        {
+            measures.Add(0, new List<(int channel, string data)>());
+            measures[0].Add((Channel.LaneAutoplay, "********"));
+        }
         // read line by line
         StreamReader br = new StreamReader(path);
 
@@ -101,13 +106,11 @@ public class BMSParser : IParser
             var match = measureRegex.Match(line);
             if (match.Success)
             {
-                var measure = int.Parse(match.Groups[1].Value);
+                var measure = int.Parse(match.Groups[1].Value) + (addReadyMeasure ? 1 : 0);
                 var channel = DecodeBase36(match.Groups[2].Value);
                 var value = match.Groups[3].Value;
                 if (!measures.ContainsKey(measure)) measures.Add(measure, new List<(int channel, string data)>());
                 measures[measure].Add((channel, value));
-                // TODO: 마디별로 한 번에 처리하도록 수정
-                // ParseMeasure(int.Parse(measure), decodeBase36(channel, value);
             }
             else
             {
@@ -151,6 +154,7 @@ public class BMSParser : IParser
         }
         br?.Close();
         var lastMeasure = measures.Keys.Max();
+        
 
         double timePassed = 0;
 
@@ -235,9 +239,14 @@ public class BMSParser : IParser
                     switch (_channel)
                     {
                         case Channel.LaneAutoplay:
+                            if (val == "**")
+                            {
+                                timeline.AddBackgroundNote(new Note(MetronomeWav));
+                                break;
+                            }
                             if (DecodeBase36(val) != 0)
                             {
-                                var bgNote = new Note(DecodeBase36(val));
+                                var bgNote = new Note(ToWaveId(val));
                                 timeline.AddBackgroundNote(bgNote);
                             }
 
@@ -300,14 +309,14 @@ public class BMSParser : IParser
                             }
                             else
                             {
-                                var note = new Note(ch);
+                                var note = new Note(ToWaveId(val));
                                 timeline.SetNote(laneNumber, note);
                                 lastNote[laneNumber] = note;
                             }
 
                             break;
                         case Channel.P1InvisibleKeyBase:
-                            var invNote = new Note(DecodeBase36(val));
+                            var invNote = new Note(ToWaveId(val));
                             timeline.SetInvisibleNote(laneNumber, invNote);
 
                             break;
@@ -317,7 +326,7 @@ public class BMSParser : IParser
                             {
                                 if (lnStart[laneNumber] == null)
                                 {
-                                    var ln = new LongNote(DecodeBase36(val));
+                                    var ln = new LongNote(ToWaveId(val));
                                     timeline.SetNote(
                                         laneNumber, ln
                                     );
@@ -362,8 +371,9 @@ public class BMSParser : IParser
 
                 measure.Timelines.Add(timeline);
                 timePassed += timeline.GetStopDuration();
-                lastPosition = position;
+                
                 if (timeline.Notes.Count > 0) chart.PlayLength = (long)timePassed;
+
                 lastPosition = position;
             }
 
@@ -382,6 +392,22 @@ public class BMSParser : IParser
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
 
         }
+        
+        
+        
+
+    }
+    
+    private int ToWaveId(string wav)
+    {
+        var decoded = DecodeBase36(wav);
+        // check range
+        if(decoded is < 0 or > 36 * 36 - 1)
+        {
+            return NoWav;
+        }
+        
+        return wavTable[decoded] == null ? NoWav : decoded;
     }
 
     private static class Channel

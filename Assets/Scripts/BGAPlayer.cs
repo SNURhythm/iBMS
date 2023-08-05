@@ -1,16 +1,28 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Video;
 
+
+class BGAPlayerState
+{
+    // schedules
+
+    public SortedDictionary<long, List<int>> Schedules = new();
+
+    public void Dispose()
+    {
+        Schedules.Clear();
+    }
+}
 public class BGAPlayer
 {
     private static readonly string[] extensions = { "mp4", "wmv", "m4v", "webm", "mpg", "mpeg", "m1v", "m2v", "avi" };
     private readonly Dictionary<int, VideoPlayer> players = new();
+    private BGAPlayerState state = new();
 
-    // schedules
-    public SortedDictionary<long, List<int>> Schedules = new();
     public int TotalPlayers { get; private set; }
     public int LoadedPlayers { get; private set; }
 
@@ -76,17 +88,17 @@ public class BGAPlayer
 
     public void Update(long timeMicro)
     {
-        foreach (var (time, ids) in Schedules)
+        foreach (var (time, ids) in state.Schedules)
         {
             foreach (var id in ids)
             {
                 if (!players.ContainsKey(id)) continue;
-                Debug.Log("updating " + id + " at " + timeMicro);
+                // Debug.Log("updating " + id + " at " + timeMicro);
                 if (timeMicro >= time)
                 {
                     players[id].skipOnDrop = true;
                     players[id].externalReferenceTime = (timeMicro - time) / 1000000d;
-                    if (!players[id].isPlaying) SafePlay(id);
+                    if (!players[id].isPlaying) players[id].Play();
 
                 }
             }
@@ -95,31 +107,23 @@ public class BGAPlayer
     
     public void ResumeAll(long timeMicro)
     {
-        foreach (var (time, ids) in Schedules)
+        foreach (var (time, ids) in state.Schedules)
         foreach (var id in ids)
         {
             if (!players.ContainsKey(id)) continue;
             if (timeMicro >= time)
             {
+
+                
                 players[id].skipOnDrop = true;
                 players[id].externalReferenceTime = (timeMicro - time) / 1000000d;
-                SafePlay(id);
+                
                 players[id].time = (timeMicro - time) / 1000000d;
+                players[id].Play();
             }
         }
     }
-
-    private void SafePlay(int id)
-    {
-        try
-        {
-            players[id].Play();
-        }
-        catch (Exception e)
-        {
-            
-        }
-    }
+    
     
     public void PauseAll()
     {
@@ -131,9 +135,17 @@ public class BGAPlayer
     {
         if(!players.ContainsKey(id)) return;
         Debug.Log("Scheduling " + id + " at " + time);
-        if (!Schedules.ContainsKey(time))
-            Schedules.Add(time, new List<int>());
+        if (!state.Schedules.ContainsKey(time))
+            state.Schedules.Add(time, new List<int>());
         
-        Schedules[time].Add(id);
+        state.Schedules[time].Add(id);
+    }
+
+    public void Reset()
+    {
+        state?.Dispose();
+        state = new BGAPlayerState();
+        foreach (var player in players.Values)
+            player.Stop();
     }
 }

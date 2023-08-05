@@ -25,4 +25,11 @@
     {
         Play(time);
     }
+
+    public void Reset()
+    {
+        IsPlayed = false;
+        IsDead = false;
+        PlayedTime = 0;
+    }
 }
