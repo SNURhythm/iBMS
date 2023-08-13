@@ -1,9 +1,11 @@
 using System;
-using System.Collections;
+
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using B83.Image.BMP;
 using Unity.VisualScripting;
 
 using UnityEngine;
@@ -14,14 +16,16 @@ public class ChartSelectScreenControl : MonoBehaviour
 {
     struct ChartItemProp
     {
-        public string Title;
-        public string Composer;
-        public string Path;
+        public Chart Chart;
+        public string RootPath;
+        public string BmsPath;
     }
     public VisualTreeAsset chartItem;
 
     private VisualElement chartSelectScreen;
     private List<ChartItemProp> chartItemProps = new List<ChartItemProp>();
+    private OrderedDictionary imageCache = new OrderedDictionary();
+    private int selectedChartIndex = -1;
     void OnEnable()
     {
         var persistDataPath = Application.persistentDataPath;
@@ -67,9 +71,9 @@ public class ChartSelectScreenControl : MonoBehaviour
                     var title = chart.Title + (chart.SubTitle != null ? " " + chart.SubTitle : "");
                     var chartItemProp = new ChartItemProp
                     {
-                        Title = title,
-                        Composer = chart.Artist,
-                        Path = chartFile.FullName
+                        Chart = chart,
+                        RootPath = file.FullName,
+                        BmsPath = chartFile.FullName
                     };
                     chartItemProps.Add(chartItemProp);
                 }
@@ -84,34 +88,121 @@ public class ChartSelectScreenControl : MonoBehaviour
         var chartListView = chartSelectScreen.Q<ListView>("ChartListView");
         //disable scrollbar
         chartListView.Q<ScrollView>().verticalScrollerVisibility = ScrollerVisibility.Hidden;
-        //disable selection
+
         chartListView.selectionType = SelectionType.None;
+
         chartListView.itemsSource = chartItemProps;
         chartListView.makeItem = () =>
         {
             
             var chartItemElement = chartItem.CloneTree();
             var button = chartItemElement.Q<Button>("Button");
+            button.focusable = false;
             button.clicked += () =>
             {
                 var data = (ChartItemProp)chartItemElement.userData;
                 // GameManager.Instance.BmsPath = data.Path;
                 // UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("LoadingScene");
+                // set selection
+                var prevSelected = chartListView.Q<Button>(className: "selected");
+                if (prevSelected != null)
+                    prevSelected.RemoveFromClassList("selected");
+                button.AddToClassList("selected");
+                selectedChartIndex = chartListView.itemsSource.IndexOf(data);
+                chartSelectScreen.Q<Label>("ChartTitle").text = data.Chart.Title + (data.Chart.SubTitle != null ? " " + data.Chart.SubTitle : "");
+                chartSelectScreen.Q<Label>("ChartArtist").text = data.Chart.Artist;
+                if (data.Chart.StageFile != null && data.Chart.StageFile.Trim().Length > 0)
+                {
+                    chartSelectScreen.Q<Image>("JacketImage").image =
+                        LoadImage(Path.Combine(data.RootPath, data.Chart.StageFile));
+                }
 
-                Debug.Log(data.Path);
+                Debug.Log(data.BmsPath);
             };
             return chartItemElement;
         };
         chartListView.bindItem = (element, i) =>
         {
+
+
             var chartItemProp = (ChartItemProp)chartListView.itemsSource[i];
+
             var chartItemElement = (VisualElement)element;
-            chartItemElement.Q<Label>("Title").text = chartItemProp.Title;
-            chartItemElement.Q<Label>("Composer").text = chartItemProp.Composer;
+            Debug.Log(chartListView.selectedIndex);
+            if(selectedChartIndex == i)
+                chartItemElement.Q<Button>("Button").AddToClassList("selected");
+
+            chartItemElement.Q<Label>("Title").text = chartItemProp.Chart.Title;
+            chartItemElement.Q<Label>("Artist").text = chartItemProp.Chart.Artist;
+            var trials = new[]
+            {
+                chartItemProp.Chart.Banner,
+                chartItemProp.Chart.StageFile,
+                chartItemProp.Chart.BackBmp
+            };
+            foreach (var trial in trials)
+            {
+                if (trial == null || trial.Trim().Length == 0) continue;
+                var texture = LoadImage(Path.Combine(chartItemProp.RootPath, trial));
+                if (texture != null)
+                {
+                    chartItemElement.Q<Image>("BannerImage").image = texture;
+                    break;
+                }
+            }
+
+
             chartItemElement.userData = chartItemProp;
+        };
+        chartListView.unbindItem = (element, i) =>
+        {
+            // remove image
+            var chartItemElement = (VisualElement)element;
+            chartItemElement.Q<Image>("BannerImage").image = null;
+            chartItemElement.Q<Button>("Button").RemoveFromClassList("selected");
+            
         };
 
 
+    }
+
+    private Texture2D LoadImage(string path)
+    {
+        try
+        {
+            if (imageCache.Contains(path))
+            {
+                return (Texture2D)imageCache[path];
+            }
+
+            Texture2D texture;
+            if (path.ToLower().EndsWith(".bmp"))
+            {
+                var bmpLoader = new BMPLoader();
+                var bmp = bmpLoader.LoadBMP(path);
+                texture = bmp.ToTexture2D();
+            }
+            else
+            {
+                texture = new Texture2D(1, 1);
+                texture.LoadImage(File.ReadAllBytes(path));
+            }
+
+            imageCache[path] = texture;
+
+            // if cache is too large, remove the oldest one
+            if (imageCache.Count > 10)
+            {
+                imageCache.RemoveAt(0);
+            }
+
+            return texture;
+        }
+        catch (Exception e)
+        {
+            Debug.Log(e);
+            return null;
+        }
     }
 
     // Start is called before the first frame update

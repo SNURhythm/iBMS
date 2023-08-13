@@ -537,6 +537,13 @@ public class BMSParser
             case "VOLWAV":
                 break;
             case "STAGEFILE":
+                chart.StageFile = value;
+                break;
+            case "BANNER":
+                chart.Banner = value;
+                break;
+            case "BACKBMP":
+                chart.BackBmp = value;
                 break;
             case "WAV":
                 if (xx == null || value == null)
