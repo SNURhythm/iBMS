@@ -11,7 +11,7 @@ using UnityEngine.Networking;
 // .bms (7key) parser
 
 // ReSharper disable once InconsistentNaming
-public class BMSParser : IParser
+public class BMSParser
 {
     /* Headers
      *
@@ -84,75 +84,79 @@ public class BMSParser : IParser
     // ReSharper disable once IdentifierTypo
     private int lntype = 1;
 
-    private Dictionary<int, Dictionary<double, TimeLine>> sections;
+    private static readonly Regex headerRegex = new(@"#([A-Za-z]+)(\d\d)? +(.+)?");
+    private static readonly Regex measureRegex = new (@"#(\d{3})(\d\d):(.+)");
 
-
-    public void Parse(string path, bool addReadyMeasure = false)
+    public BMSParser(bool metaOnly = false)
+    {
+        
+    }
+    public void Parse(string path, bool addReadyMeasure = false, bool metaOnly = false)
     {
         // <measure number, (channel, data)>
         Dictionary<int, List<(int channel, string data)>> measures = new();
-        if (addReadyMeasure)
-        {
-            measures.Add(0, new List<(int channel, string data)>());
-            measures[0].Add((Channel.LaneAutoplay, "********"));
-        }
+
         // read line by line
         StreamReader br = new StreamReader(path);
 
         while (br.ReadLine() is { } line)
         {
             if (!line.StartsWith("#")) continue;
-            var measureRegex = new Regex(@"#(\d{3})(\d\d):(.+)");
-            var match = measureRegex.Match(line);
-            if (match.Success)
-            {
-                var measure = int.Parse(match.Groups[1].Value) + (addReadyMeasure ? 1 : 0);
-                var channel = DecodeBase36(match.Groups[2].Value);
-                var value = match.Groups[3].Value;
-                if (!measures.ContainsKey(measure)) measures.Add(measure, new List<(int channel, string data)>());
-                measures[measure].Add((channel, value));
-            }
-            else
-            {
-                if (line.StartsWith("#WAV") || line.StartsWith("#BMP"))
-                {
-                    var xx = line.Substring(4, 2);
-                    var value = line.Substring(7);
-                    ParseHeader(line.Substring(1, 3), xx, value); // TODO: refactor this shit
-                }
-                else if (line.StartsWith("#BPM"))
-                {
-                    // #BPMxx value or #BPM value
-                    if (line.Substring(4).StartsWith(' '))
-                    {
-                        var value = line.Substring(5);
-                        ParseHeader("BPM", null, value);
-                    }
-                    else
-                    {
-                        var xx = line.Substring(4, 2);
-                        var value = line.Substring(7);
-                        ParseHeader("BPM", xx, value);
-                    }
 
+            if (line.StartsWith("#WAV") || line.StartsWith("#BMP"))
+            {
+                var xx = line.Substring(4, 2);
+                var value = line.Substring(7);
+                ParseHeader(line.Substring(1, 3), xx, value); // TODO: refactor this shit
+            }
+            else if (line.StartsWith("#BPM"))
+            {
+                // #BPMxx value or #BPM value
+                if (line.Substring(4).StartsWith(' '))
+                {
+                    var value = line.Substring(5);
+                    ParseHeader("BPM", null, value);
                 }
                 else
                 {
-                    var regex = new Regex(@"#([A-Za-z]+)(\d\d)? +(.+)?");
-                    match = regex.Match(line);
+                    var xx = line.Substring(4, 2);
+                    var value = line.Substring(7);
+                    ParseHeader("BPM", xx, value);
+                }
+
+            }
+            else
+            {
+                var match = headerRegex.Match(line);
+                if (match.Success)
+                {
+                    var cmd = match.Groups[1].Value;
+                    var xx = match.Groups.Count > 3 ? match.Groups[2].Value : null;
+                    var value = match.Groups.Count == 3 ? match.Groups[2].Value :
+                        match.Groups.Count > 3 ? match.Groups[3].Value : null;
+
+                    ParseHeader(cmd, xx, value);
+                } else if (!metaOnly)
+                {
+                    match = measureRegex.Match(line);
                     if (match.Success)
                     {
-                        var cmd = match.Groups[1].Value;
-                        var xx = match.Groups.Count > 3 ? match.Groups[2].Value : null;
-                        var value = match.Groups.Count == 3 ? match.Groups[2].Value :
-                            match.Groups.Count > 3 ? match.Groups[3].Value : null;
-
-                        ParseHeader(cmd, xx, value);
+                        var measure = int.Parse(match.Groups[1].Value) + (addReadyMeasure ? 1 : 0);
+                        var channel = DecodeBase36(match.Groups[2].Value);
+                        var value = match.Groups[3].Value;
+                        if (!measures.ContainsKey(measure)) measures.Add(measure, new List<(int channel, string data)>());
+                        measures[measure].Add((channel, value));
                     }
                 }
             }
         }
         br?.Close();
+        if (metaOnly) return;
+        if (addReadyMeasure)
+        {
+            measures.Add(0, new List<(int channel, string data)>());
+            measures[0].Add((Channel.LaneAutoplay, "********"));
+        }
         var lastMeasure = measures.Keys.Max();
         
 
@@ -495,6 +499,9 @@ public class BMSParser : IParser
                 break;
             case "TITLE":
                 chart.Title = value;
+                break;
+            case "SUBTITLE":
+                chart.SubTitle = value;
                 break;
             case "ARTIST":
                 chart.Artist = value;

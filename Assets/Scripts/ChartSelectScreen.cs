@@ -24,10 +24,10 @@ public class ChartSelectScreen : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        var bmpLoader = new BMPLoader();
-        var image = bmpLoader.LoadBMP(Application.persistentDataPath + "/take003/bga_take_bg.bmp");
-        var texture = image.ToTexture2D();
-        Background.texture = texture;
+        // var bmpLoader = new BMPLoader();
+        // var image = bmpLoader.LoadBMP(Application.persistentDataPath + "/take003/bga_take_bg.bmp");
+        // var texture = image.ToTexture2D();
+        // Background.texture = texture;
     }
 
     private void OnEnable()

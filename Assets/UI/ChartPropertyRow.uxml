@@ -1,0 +1,6 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="ChartPropertyRow" style="flex-grow: 1; background-color: rgba(0, 0, 0, 0); justify-content: space-between; flex-direction: row; margin-bottom: 10px;">
+        <ui:Label tabindex="-1" text="Key" display-tooltip-when-elided="true" name="Key" style="color: rgb(202, 202, 202); font-size: 16px;" />
+        <ui:Label tabindex="-1" text="Value" display-tooltip-when-elided="true" name="Value" style="font-size: 16px; color: rgb(255, 255, 255); -unity-font-style: bold;" />
+    </ui:VisualElement>
+</ui:UXML>
