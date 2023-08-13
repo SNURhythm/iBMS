@@ -25,7 +25,7 @@ public class ChartSelectScreenControl : MonoBehaviour
     private VisualElement chartSelectScreen;
     private List<ChartItemProp> chartItemProps = new List<ChartItemProp>();
     private OrderedDictionary imageCache = new OrderedDictionary();
-    private int selectedChartIndex = -1;
+    private string selectedBmsPath;
     void OnEnable()
     {
         var persistDataPath = Application.persistentDataPath;
@@ -108,7 +108,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                 if (prevSelected != null)
                     prevSelected.RemoveFromClassList("selected");
                 button.AddToClassList("selected");
-                selectedChartIndex = chartListView.itemsSource.IndexOf(data);
+                selectedBmsPath = data.BmsPath;
                 chartSelectScreen.Q<Label>("ChartTitle").text = data.Chart.Title + (data.Chart.SubTitle != null ? " " + data.Chart.SubTitle : "");
                 chartSelectScreen.Q<Label>("ChartArtist").text = data.Chart.Artist;
                 if (data.Chart.StageFile != null && data.Chart.StageFile.Trim().Length > 0)
@@ -128,8 +128,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             var chartItemProp = (ChartItemProp)chartListView.itemsSource[i];
 
             var chartItemElement = (VisualElement)element;
-            Debug.Log(chartListView.selectedIndex);
-            if(selectedChartIndex == i)
+            if(selectedBmsPath == chartItemProp.BmsPath)
                 chartItemElement.Q<Button>("Button").AddToClassList("selected");
 
             chartItemElement.Q<Label>("Title").text = chartItemProp.Chart.Title;
@@ -161,6 +160,19 @@ public class ChartSelectScreenControl : MonoBehaviour
             chartItemElement.Q<Image>("BannerImage").image = null;
             chartItemElement.Q<Button>("Button").RemoveFromClassList("selected");
             
+        };
+        
+        var startButton = chartSelectScreen.Q<Button>("StartButton");
+        startButton.clicked += () =>
+        {
+            if (selectedBmsPath == null)
+            {
+                Debug.Log("No chart selected");
+                return;
+            }
+
+            GameManager.Instance.BmsPath = selectedBmsPath;
+            UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("LoadingScene");
         };
 
 
