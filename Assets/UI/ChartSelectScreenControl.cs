@@ -115,6 +115,10 @@ public class ChartSelectScreenControl : MonoBehaviour
                     chartSelectScreen.Q<Image>("JacketImage").image =
                         LoadImage(Path.Combine(data.RootPath, data.Chart.StageFile));
                 }
+                else
+                {
+                    chartSelectScreen.Q<Image>("JacketImage").image = null;
+                }
 
                 Debug.Log(data.BmsPath);
             };
