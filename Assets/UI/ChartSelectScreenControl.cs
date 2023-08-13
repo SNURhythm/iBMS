@@ -68,7 +68,6 @@ public class ChartSelectScreenControl : MonoBehaviour
                     }
 
                     var chart = parser.GetChart();
-                    var title = chart.Title + (chart.SubTitle != null ? " " + chart.SubTitle : "");
                     var chartItemProp = new ChartItemProp
                     {
                         Chart = chart,
@@ -130,14 +129,15 @@ public class ChartSelectScreenControl : MonoBehaviour
             var chartItemElement = (VisualElement)element;
             if(selectedBmsPath == chartItemProp.BmsPath)
                 chartItemElement.Q<Button>("Button").AddToClassList("selected");
-
-            chartItemElement.Q<Label>("Title").text = chartItemProp.Chart.Title;
-            chartItemElement.Q<Label>("Artist").text = chartItemProp.Chart.Artist;
+            var chart = chartItemProp.Chart;
+            var title = chart.Title + (chart.SubTitle != null ? " " + chart.SubTitle : "");
+            chartItemElement.Q<Label>("Title").text = title;
+            chartItemElement.Q<Label>("Artist").text = chart.Artist;
             var trials = new[]
             {
-                chartItemProp.Chart.Banner,
-                chartItemProp.Chart.StageFile,
-                chartItemProp.Chart.BackBmp
+                chart.Banner,
+                chart.StageFile,
+                chart.BackBmp
             };
             foreach (var trial in trials)
             {
