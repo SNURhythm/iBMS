@@ -100,7 +100,7 @@ public class BMSParser
         // <measure number, (channel, data)>
         Dictionary<int, List<(int channel, string data)>> measures = new();
         FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read);
-        var result = CharsetDetector.DetectFromStream(fs);
+        var result = CharsetDetector.DetectFromStream(fs, 1024); // 1024 would be enough for title
         fs.Seek(0, SeekOrigin.Begin);
         var encoding = Encoding.GetEncoding(932); // 932: Shift-JIS
         if (result?.Detected?.Encoding != null)
@@ -110,6 +110,7 @@ public class BMSParser
                 encoding = result.Detected.Encoding;
             }
         }
+
         // read line by line
         StreamReader br = new StreamReader(fs, encoding); 
 

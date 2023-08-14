@@ -714,7 +714,12 @@ public class RhythmControl : MonoBehaviour
     {
         IsPaused = false;
         channelGroup.setPaused(false);
-        gameState.IsPlaying = true;
+        
+        if (gameState != null)
+        {
+            gameState.IsPlaying = true;
+        }
+
         bgaPlayer.ResumeAll(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
         PausePanel.SetActive(false);
     }
@@ -723,7 +728,12 @@ public class RhythmControl : MonoBehaviour
     {
         IsPaused = true;
         channelGroup.setPaused(true);
-        gameState.IsPlaying = false;
+        
+        if (gameState != null)
+        {
+            gameState.IsPlaying = false;
+        }
+
         bgaPlayer.PauseAll();
         PausePanel.SetActive(true);
     }

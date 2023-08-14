@@ -6,15 +6,16 @@
     margin-bottom: 0;
     color: rgb(202, 202, 202);
     font-size: 16px;
-    -unity-font: url('project://database/Assets/TextMesh%20Pro/Fonts/LiberationSans.ttf?fileID=12800000&guid=e3265ab4bf004d28a9537516768c1c75&type=3#LiberationSans');
     -unity-text-align: middle-center;
     overflow: hidden;
     text-overflow: ellipsis;
+    -unity-font-definition: url('project://database/Assets/Fonts/NotoSans-Regular%20SDF.asset?fileID=11400000&guid=37b3d7071b3e5c74f9aa4854db8ae0e3&type=2#NotoSans-Regular SDF');
+    -unity-font: url('project://database/Assets/Fonts/NotoSans-Regular.ttf?fileID=12800000&guid=7909afd811899b44289491b7043b2eb7&type=3#NotoSans-Regular');
 }
 
 .songtitle-text {
     height: 30px;
-    -unity-font: url('project://database/Assets/TextMesh%20Pro/Fonts/LiberationSans.ttf?fileID=12800000&guid=e3265ab4bf004d28a9537516768c1c75&type=3#LiberationSans');
+    -unity-font: url('project://database/Assets/Fonts/NotoSans-Regular.ttf?fileID=12800000&guid=7909afd811899b44289491b7043b2eb7&type=3#NotoSans-Regular');
     -unity-font-style: bold;
     font-size: 24px;
     -unity-text-align: middle-center;
@@ -25,15 +26,13 @@
     margin-bottom: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    -unity-font-definition: url('project://database/Assets/Fonts/NotoSans-Regular%20SDF.asset?fileID=11400000&guid=37b3d7071b3e5c74f9aa4854db8ae0e3&type=2#NotoSans-Regular SDF');
 }
 
 .unity-list-view {
     --unity-metrics-single_line-height: 500px;
 }
 
-
 .unity-list-view__item:hover {
-
     background-color: rgba(0, 0, 0, 0);
 }
-

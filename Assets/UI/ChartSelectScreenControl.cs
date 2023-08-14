@@ -118,7 +118,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             var chartItemElement = (VisualElement)element;
             var titleLabel = chartItemElement.Q<Label>("Title");
             var artistLabel = chartItemElement.Q<Label>("Artist");
-            titleLabel.text = "Loading...";
+            titleLabel.text = "로딩중...";
             artistLabel.text = "";
             if(chartCache.ContainsKey(path))
             {
