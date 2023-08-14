@@ -37,67 +37,34 @@ public class ChartSelectScreenControl : MonoBehaviour
     private List<PathProp> paths = new();
     // cancellation tokens for parsing
     private Dictionary<PathProp, CancellationTokenSource> cts = new Dictionary<PathProp, CancellationTokenSource>();
+    
+    void FindRecursive(DirectoryInfo directory)
+    {
+        
+        var fileInfo = directory.GetFiles();
+        foreach (var file in fileInfo)
+        {
+            if (!new[] { ".bms", ".bme", ".bml" }.Contains(file.Extension)) continue;
+            paths.Add(new PathProp
+            {
+                RootPath = directory.FullName,
+                BmsPath = file.FullName
+            });
+        }
+
+        var dirInfo = directory.GetDirectories();
+        foreach (var dir in dirInfo)
+        {
+            FindRecursive(dir);
+        }
+    }
     void OnEnable()
     {
         var persistDataPath = Application.persistentDataPath;
-        // Task.Run(() =>
-        // {
-            
-            Debug.Log("Start parsing");
 
-    
-            var accumParseTime = 0.0;
-            //
-            var info = new DirectoryInfo(persistDataPath);
-            var fileInfo = info.GetDirectories();
-            Debug.Log("Directory count: " + fileInfo.Length);
-            var startTimeTotal = DateTime.Now;
-            for (var i = 0; i < fileInfo.Length; i++)
-            {
+        var info = new DirectoryInfo(persistDataPath);
+        FindRecursive(info);
 
-                var file = fileInfo[i];
-
-
-                var chartInfo = new DirectoryInfo(file.FullName);
-                // Debug.Log("Parsing " + chartInfo.FullName);
-                var chartFileInfo = chartInfo.GetFiles();
-                foreach (var chartFile in chartFileInfo)
-                {
-                    if (!new[] { ".bms", ".bme", ".bml" }.Contains(chartFile.Extension)) continue;
-                    // var parser = new BMSParser();
-                    // try
-                    // {
-                    //     var startTime = DateTime.Now;
-                    //     parser.Parse(chartFile.FullName, metaOnly: true);
-                    //     var endTime = DateTime.Now;
-                    //     accumParseTime += (endTime - startTime).TotalMilliseconds;
-                    // }
-                    // catch (Exception e)
-                    // {
-                    //     Debug.Log(e);
-                    //     continue;
-                    // }
-                    //
-                    // var chart = parser.GetChart();
-                    // var chartItemProp = new ChartItemProp
-                    // {
-                    //     Chart = chart,
-                    //     RootPath = file.FullName,
-                    //     BmsPath = chartFile.FullName
-                    // };
-                    paths.Add(new PathProp
-                    {
-                        RootPath = file.FullName,
-                        BmsPath = chartFile.FullName
-                    });
-                    // chartItemProps.Add(chartItemProp);
-                }
-            }
-
-            Debug.Log("Parse time: " + accumParseTime);
-            var endTimeTotal = DateTime.Now;
-            Debug.Log("Total time: " + (endTimeTotal - startTimeTotal).TotalMilliseconds);
-        // });
 
         chartSelectScreen = GetComponent<UIDocument>().rootVisualElement;
         var chartListView = chartSelectScreen.Q<ListView>("ChartListView");

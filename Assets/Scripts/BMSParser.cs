@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Networking;
+using UtfUnknown;
 
 
 // .bms (7key) parser
@@ -97,9 +99,19 @@ public class BMSParser
         
         // <measure number, (channel, data)>
         Dictionary<int, List<(int channel, string data)>> measures = new();
-
+        FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read);
+        var result = CharsetDetector.DetectFromStream(fs);
+        fs.Seek(0, SeekOrigin.Begin);
+        var encoding = Encoding.GetEncoding(932); // 932: Shift-JIS
+        if (result?.Detected?.Encoding != null)
+        {
+            if (result.Detected.Confidence >= 0.875)
+            {
+                encoding = result.Detected.Encoding;
+            }
+        }
         // read line by line
-        StreamReader br = new StreamReader(path);
+        StreamReader br = new StreamReader(fs, encoding); 
 
         while (br.ReadLine() is { } line)
         {
