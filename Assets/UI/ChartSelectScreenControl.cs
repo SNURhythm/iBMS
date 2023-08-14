@@ -1,5 +1,5 @@
 using System;
-
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
@@ -11,6 +11,7 @@ using FMOD;
 using Unity.VisualScripting;
 
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
@@ -269,6 +270,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         var startButton = chartSelectScreen.Q<Button>("StartButton");
         startButton.clicked += () =>
         {
+            
             if (selectedBmsPath == null)
             {
                 Debug.Log("No chart selected");
@@ -276,11 +278,25 @@ public class ChartSelectScreenControl : MonoBehaviour
             }
 
             GameManager.Instance.BmsPath = selectedBmsPath;
-            UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("LoadingScene");
+
+            StartCoroutine(LoadScene());
+
         };
 
 
     }
+    
+    IEnumerator LoadScene()
+    {
+        var asyncOperation = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("PlayScene");
+        while (!asyncOperation.isDone)
+        {
+            Debug.Log(asyncOperation.progress);
+            yield return null;
+        }
+
+    }
+
 
     private Texture2D LoadImage(string path)
     {
@@ -324,7 +340,14 @@ public class ChartSelectScreenControl : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+        SceneManager.sceneUnloaded += (scene) =>
+        {
+
+            channelGroup.stop();
+            channelGroup.release();
+            previewSound.release();
+
+        };
     }
 
     // Update is called once per frame
