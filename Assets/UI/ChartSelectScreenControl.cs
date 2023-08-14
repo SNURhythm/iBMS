@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using B83.Image.BMP;
 using Unity.VisualScripting;
@@ -20,12 +21,22 @@ public class ChartSelectScreenControl : MonoBehaviour
         public string RootPath;
         public string BmsPath;
     }
+    
+    struct PathProp
+    {
+        public string RootPath;
+        public string BmsPath;
+    }
     public VisualTreeAsset chartItem;
 
     private VisualElement chartSelectScreen;
     private List<ChartItemProp> chartItemProps = new List<ChartItemProp>();
     private OrderedDictionary imageCache = new OrderedDictionary();
+    private Dictionary<PathProp, ChartItemProp> chartCache = new Dictionary<PathProp, ChartItemProp>();
     private string selectedBmsPath;
+    private List<PathProp> paths = new();
+    // cancellation tokens for parsing
+    private Dictionary<PathProp, CancellationTokenSource> cts = new Dictionary<PathProp, CancellationTokenSource>();
     void OnEnable()
     {
         var persistDataPath = Application.persistentDataPath;
@@ -48,33 +59,38 @@ public class ChartSelectScreenControl : MonoBehaviour
 
 
                 var chartInfo = new DirectoryInfo(file.FullName);
-                Debug.Log("Parsing " + chartInfo.FullName);
+                // Debug.Log("Parsing " + chartInfo.FullName);
                 var chartFileInfo = chartInfo.GetFiles();
                 foreach (var chartFile in chartFileInfo)
                 {
                     if (!new[] { ".bms", ".bme", ".bml" }.Contains(chartFile.Extension)) continue;
-                    var parser = new BMSParser();
-                    try
+                    // var parser = new BMSParser();
+                    // try
+                    // {
+                    //     var startTime = DateTime.Now;
+                    //     parser.Parse(chartFile.FullName, metaOnly: true);
+                    //     var endTime = DateTime.Now;
+                    //     accumParseTime += (endTime - startTime).TotalMilliseconds;
+                    // }
+                    // catch (Exception e)
+                    // {
+                    //     Debug.Log(e);
+                    //     continue;
+                    // }
+                    //
+                    // var chart = parser.GetChart();
+                    // var chartItemProp = new ChartItemProp
+                    // {
+                    //     Chart = chart,
+                    //     RootPath = file.FullName,
+                    //     BmsPath = chartFile.FullName
+                    // };
+                    paths.Add(new PathProp
                     {
-                        var startTime = DateTime.Now;
-                        parser.Parse(chartFile.FullName, metaOnly: true);
-                        var endTime = DateTime.Now;
-                        accumParseTime += (endTime - startTime).TotalMilliseconds;
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.Log(e);
-                        continue;
-                    }
-
-                    var chart = parser.GetChart();
-                    var chartItemProp = new ChartItemProp
-                    {
-                        Chart = chart,
                         RootPath = file.FullName,
                         BmsPath = chartFile.FullName
-                    };
-                    chartItemProps.Add(chartItemProp);
+                    });
+                    // chartItemProps.Add(chartItemProp);
                 }
             }
 
@@ -90,7 +106,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
         chartListView.selectionType = SelectionType.None;
 
-        chartListView.itemsSource = chartItemProps;
+        chartListView.itemsSource = paths;
         chartListView.makeItem = () =>
         {
             
@@ -124,38 +140,115 @@ public class ChartSelectScreenControl : MonoBehaviour
             };
             return chartItemElement;
         };
-        chartListView.bindItem = (element, i) =>
+        
+        chartListView.bindItem = async (element, i) =>
         {
+            Debug.Log(chartListView.childCount);
 
-
-            var chartItemProp = (ChartItemProp)chartListView.itemsSource[i];
-
+            ChartItemProp chartItemProp;
+            var parseError = false;
+            var path = (PathProp)chartListView.itemsSource[i];
             var chartItemElement = (VisualElement)element;
-            if(selectedBmsPath == chartItemProp.BmsPath)
-                chartItemElement.Q<Button>("Button").AddToClassList("selected");
-            var chart = chartItemProp.Chart;
-            var title = chart.Title + (chart.SubTitle != null ? " " + chart.SubTitle : "");
-            chartItemElement.Q<Label>("Title").text = title;
-            chartItemElement.Q<Label>("Artist").text = chart.Artist;
-            var trials = new[]
+            var titleLabel = chartItemElement.Q<Label>("Title");
+            var artistLabel = chartItemElement.Q<Label>("Artist");
+            titleLabel.text = "Loading...";
+            artistLabel.text = "";
+            if(chartCache.ContainsKey(path))
             {
-                chart.Banner,
-                chart.StageFile,
-                chart.BackBmp
-            };
-            foreach (var trial in trials)
+                chartItemProp = chartCache[path];
+            }
+            else
             {
-                if (trial == null || trial.Trim().Length == 0) continue;
-                var texture = LoadImage(Path.Combine(chartItemProp.RootPath, trial));
-                if (texture != null)
+                var parser = new BMSParser();
+
+                try
                 {
-                    chartItemElement.Q<Image>("BannerImage").image = texture;
-                    break;
+                    cts.Add(path, new CancellationTokenSource());
+
+                    var task = Task.Run(() =>
+                        {
+                            try
+                            {
+                                parser.Parse(path.BmsPath, metaOnly: true, cancellationToken: cts[path].Token);
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.Log(e);
+                                parseError = true;
+                            }
+                        }
+                        , cts[path].Token);
+                    await task;
+                }
+                catch (AggregateException e)
+                {
+                    Debug.Log(e);
+                    return;
+                }
+
+                if (parseError)
+                {
+                    chartItemProp = new ChartItemProp
+                    {
+                        Chart = null,
+                        RootPath = path.RootPath,
+                        BmsPath = path.BmsPath
+                    };
+                }
+                else
+                {
+
+                    var chart_ = parser.GetChart();
+                    chartItemProp = new ChartItemProp
+                    {
+                        Chart = chart_,
+                        RootPath = path.RootPath,
+                        BmsPath = path.BmsPath
+                    };
+
+                    chartCache.Add(path, chartItemProp);
                 }
             }
 
 
+            if (selectedBmsPath == chartItemProp.BmsPath)
+                chartItemElement.Q<Button>("Button").AddToClassList("selected");
+            var chart = chartItemProp.Chart;
+            string title;
+            string artist;
+            if (chart == null)
+            {
+                title = "Parse Error";
+                artist = "Parse Error";
+            }
+            else
+            {
+                title = chart.Title + (chart.SubTitle != null ? " " + chart.SubTitle : "");
+                artist = chart.Artist;
+
+                var trials = new[]
+                {
+                    chart.Banner,
+                    chart.StageFile,
+                    chart.BackBmp
+                };
+                foreach (var trial in trials)
+                {
+                    if (trial == null || trial.Trim().Length == 0) continue;
+                    var texture = LoadImage(Path.Combine(chartItemProp.RootPath, trial));
+                    if (texture != null)
+                    {
+                        chartItemElement.Q<Image>("BannerImage").image = texture;
+                        break;
+                    }
+                }
+            }
+            titleLabel.text = title;
+            artistLabel.text = artist;
+
+
             chartItemElement.userData = chartItemProp;
+            
         };
         chartListView.unbindItem = (element, i) =>
         {
@@ -163,6 +256,15 @@ public class ChartSelectScreenControl : MonoBehaviour
             var chartItemElement = (VisualElement)element;
             chartItemElement.Q<Image>("BannerImage").image = null;
             chartItemElement.Q<Button>("Button").RemoveFromClassList("selected");
+            chartItemElement.Q<Label>("Title").text = "";
+            chartItemElement.Q<Label>("Artist").text = "";
+            // cancel parsing
+            var path = (PathProp)chartListView.itemsSource[i];
+            if(cts.ContainsKey(path))
+            {
+                cts[path].Cancel();
+                cts.Remove(path);
+            }
             
         };
         

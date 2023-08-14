@@ -175,16 +175,19 @@ public class BMSRenderer : MonoBehaviour
     {
         laneBeamEffects[laneNumber].ResumeEffect();
     }
-    
-    
 
-    public void Draw(long currentTime)
+
+    public void UpdateLaneBeam()
     {
-        if(state == null) return;
         for (int i = 0; i < 8; i++)
         {
             laneBeamEffects[i].Tick();
         }
+    }
+    public void Draw(long currentTime)
+    {
+        if(state == null) return;
+
 
         var measures = chart.Measures;
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -91,8 +92,9 @@ public class BMSParser
     {
         
     }
-    public void Parse(string path, bool addReadyMeasure = false, bool metaOnly = false)
+    public void Parse(string path, bool addReadyMeasure = false, bool metaOnly = false, CancellationToken cancellationToken = default)
     {
+        
         // <measure number, (channel, data)>
         Dictionary<int, List<(int channel, string data)>> measures = new();
 
@@ -101,6 +103,11 @@ public class BMSParser
 
         while (br.ReadLine() is { } line)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                br.Close();
+                return;
+            }
             if (!line.StartsWith("#")) continue;
 
             if (line.StartsWith("#WAV") || line.StartsWith("#BMP"))
@@ -150,7 +157,7 @@ public class BMSParser
                 }
             }
         }
-        br?.Close();
+        br.Close();
         if (metaOnly) return;
         if (addReadyMeasure)
         {
@@ -167,6 +174,7 @@ public class BMSParser
         var lnStart = new LongNote[TempKey];
         for (var i = 0; i <= lastMeasure; i++)
         {
+            if(cancellationToken.IsCancellationRequested) return;
             if (!measures.ContainsKey(i))
             {
                 measures.Add(i, new List<(int channel, string data)>());
@@ -178,6 +186,7 @@ public class BMSParser
 
             foreach (var (channel, data) in measures[i])
             {
+                if(cancellationToken.IsCancellationRequested) return;
                 var _channel = channel;
                 if (channel == Channel.SectionRate)
                 {
@@ -259,7 +268,7 @@ public class BMSParser
                             if (val == "00") break;
 
                             timeline.Bpm = Convert.ToInt32(val, 16);
-                            Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
+                            // Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
                             timeline.BpmChange = true;
 
 
@@ -280,14 +289,14 @@ public class BMSParser
                             if (val == "00") break;
 
                             timeline.Bpm = bpmTable[DecodeBase36(val)];
-                            Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}, {val}");
+                            // Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}, {val}");
                             timeline.BpmChange = true;
 
 
                             break;
                         case Channel.Stop:
                             timeline.StopLength = StopLengthTable[DecodeBase36(val)];
-                            Debug.Log($"STOP: {timeline.StopLength}, on measure {i}");
+                            // Debug.Log($"STOP: {timeline.StopLength}, on measure {i}");
                             break;
                         case Channel.P1KeyBase:
                             var ch = DecodeBase36(val);
@@ -363,6 +372,7 @@ public class BMSParser
             chart.Measures.Add(measure);
             foreach (var (position, timeline) in timelines)
             {
+                if(cancellationToken.IsCancellationRequested) return;
 
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
                 double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
@@ -513,7 +523,7 @@ public class BMSParser
                     chart.Bpm = double.Parse(value);
                 else
                 {
-                    Debug.Log($"BPM: {DecodeBase36(xx)} = {double.Parse(value)}");
+                    // Debug.Log($"BPM: {DecodeBase36(xx)} = {double.Parse(value)}");
                     bpmTable[DecodeBase36(xx)] = double.Parse(value);
 
                 }
