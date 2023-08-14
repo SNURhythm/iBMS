@@ -568,6 +568,9 @@ public class BMSParser
             case "BACKBMP":
                 chart.BackBmp = value;
                 break;
+            case "PREVIEW":
+                chart.Preview = value;
+                break;
             case "WAV":
                 if (xx == null || value == null)
                 {

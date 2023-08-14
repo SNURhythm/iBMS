@@ -110,8 +110,8 @@ public class RhythmControl : MonoBehaviour
         EditorApplication.pauseStateChanged += OnPauseStateChanged;
         lastPauseState = EditorApplication.isPaused ? PauseState.Paused : PauseState.Unpaused;
 #endif
-        RuntimeManager.StudioSystem.release();
-        RuntimeManager.CoreSystem.release();
+        // RuntimeManager.StudioSystem.release();
+        // RuntimeManager.CoreSystem.release();
         Factory.System_Create(out system); // TODO: make system singleton
         system.setSoftwareChannels(MaxRealChannels);
         system.setSoftwareFormat(48000, SPEAKERMODE.DEFAULT, 0);

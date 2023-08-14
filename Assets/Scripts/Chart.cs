@@ -16,5 +16,6 @@ public class Chart
     public string Banner;
     public string StageFile;
     public string BackBmp;
+    public string Preview;
     public bool BgaPoorDefault = false;
 }

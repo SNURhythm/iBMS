@@ -7,11 +7,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using B83.Image.BMP;
+using FMOD;
 using Unity.VisualScripting;
 
 using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UIElements;
+using Debug = UnityEngine.Debug;
 
 public class ChartSelectScreenControl : MonoBehaviour
 {
@@ -30,20 +32,26 @@ public class ChartSelectScreenControl : MonoBehaviour
     public VisualTreeAsset chartItem;
 
     private VisualElement chartSelectScreen;
-    private List<ChartItemProp> chartItemProps = new List<ChartItemProp>();
     private OrderedDictionary imageCache = new OrderedDictionary();
     private Dictionary<PathProp, ChartItemProp> chartCache = new Dictionary<PathProp, ChartItemProp>();
     private string selectedBmsPath;
     private List<PathProp> paths = new();
     // cancellation tokens for parsing
     private Dictionary<PathProp, CancellationTokenSource> cts = new Dictionary<PathProp, CancellationTokenSource>();
-    
+    private Dictionary<string, string> previews = new Dictionary<string, string>();
+    FMOD.Sound previewSound;
+    ChannelGroup channelGroup;
     void FindRecursive(DirectoryInfo directory)
     {
         
         var fileInfo = directory.GetFiles();
         foreach (var file in fileInfo)
         {
+            if (file.Name.StartsWith("preview") && new[] { ".mp3", ".ogg", ".flac", ".wav" }.Contains(file.Extension))
+            {
+                if(previews.ContainsKey(directory.FullName)) continue;
+                previews.Add(directory.FullName, file.FullName);
+            }
             if (!new[] { ".bms", ".bme", ".bml" }.Contains(file.Extension)) continue;
             paths.Add(new PathProp
             {
@@ -57,6 +65,11 @@ public class ChartSelectScreenControl : MonoBehaviour
         {
             FindRecursive(dir);
         }
+    }
+
+    void Awake()
+    {
+        FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out channelGroup);
     }
     void OnEnable()
     {
@@ -91,6 +104,24 @@ public class ChartSelectScreenControl : MonoBehaviour
                     prevSelected.RemoveFromClassList("selected");
                 button.AddToClassList("selected");
                 selectedBmsPath = data.BmsPath;
+                channelGroup.stop();
+                string preview;
+                if (data.Chart.Preview != null)
+                {
+                    preview = Path.Combine(data.RootPath, data.Chart.Preview);
+                }
+                else
+                {
+                    preview = previews.ContainsKey(data.RootPath) ? previews[data.RootPath] : null;
+                }
+
+                if (preview != null)
+                {
+                    FMODUnity.RuntimeManager.CoreSystem.createSound(preview, FMOD.MODE.DEFAULT,
+                        out previewSound);
+                    FMODUnity.RuntimeManager.CoreSystem.playSound(previewSound, channelGroup, false, out var channel);
+                }
+
                 chartSelectScreen.Q<Label>("ChartTitle").text = data.Chart.Title + (data.Chart.SubTitle != null ? " " + data.Chart.SubTitle : "");
                 chartSelectScreen.Q<Label>("ChartArtist").text = data.Chart.Artist;
                 if (data.Chart.StageFile != null && data.Chart.StageFile.Trim().Length > 0)
