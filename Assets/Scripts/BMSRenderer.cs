@@ -37,7 +37,7 @@ public class BMSRenderer : MonoBehaviour
     private GameObject[] lineBeams;
     private GameObject[] keyBombs;
     private Chart chart;
-    private readonly float laneWidth = 3.0f;
+    private float laneWidth = 3.0f;
     private readonly float laneMargin = 0f;
     private readonly float noteHeight = 1.0f;
     private readonly float judgeLinePosition = 0.0f;
@@ -82,6 +82,7 @@ public class BMSRenderer : MonoBehaviour
                 lastTimeline = timeline;
             }
         }
+      
     }
 
     public void Reset()
@@ -107,6 +108,8 @@ public class BMSRenderer : MonoBehaviour
         squarePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
         squarePrefab.name = "Square";
         spawnPosition = NoteArea.transform.localScale.y;
+        
+          laneWidth = NoteArea.transform.localScale.x / (GameManager.Instance.KeyMode + 1);
         var laneDivider = new GameObject();
         laneDivider.SetActive(false);
 
@@ -123,13 +126,12 @@ public class BMSRenderer : MonoBehaviour
         laneBeamSr.sortingLayerName = "LaneBeam";
         laneBeamSr.drawMode = SpriteDrawMode.Sliced;
         laneBeamSr.size = new Vector2(laneWidth, NoteArea.transform.localScale.y);
-
-
-        keyBombs = new GameObject[8];
-        laneBeamEffects = new LaneBeamEffect[8];
-        for (int i = 0; i < 8; i++)
+        Debug.Log("keys: " + GameManager.Instance.KeyMode);
+        keyBombs = new GameObject[GameManager.Instance.KeyMode+1];
+        laneBeamEffects = new LaneBeamEffect[GameManager.Instance.KeyMode+1];
+        for (int i = 0; i < GameManager.Instance.KeyMode+1; i++)
         {
-            if (i != 6)
+            if (i != GameManager.Instance.KeyMode-1)
             {
                 laneDivider.name = "LaneDivider";
                 var newLaneDivider = Instantiate(laneDivider, LaneArea.transform);
@@ -153,13 +155,10 @@ public class BMSRenderer : MonoBehaviour
             var newLaneBeam = Instantiate(laneBeam, LaneArea.transform);
             newLaneBeam.SetActive(true);
             newLaneBeam.transform.localPosition = new Vector3(LaneToLeft(i), NoteArea.transform.localScale.y / 2 - judgeLineHeight / 2, 0);
-            newLaneBeam.GetComponent<SpriteRenderer>().color = noteColors[i];
+            newLaneBeam.GetComponent<SpriteRenderer>().color = noteColors[i==GameManager.Instance.KeyMode?7:i];
             laneBeamEffects[i] = new LaneBeamEffect(newLaneBeam, 0.2f);
-
-
-
+            
         }
-
     }
 
     public void PlayKeyBomb(int laneNumber, Judgement judgement)
@@ -185,7 +184,7 @@ public class BMSRenderer : MonoBehaviour
 
     public void UpdateLaneBeam()
     {
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < GameManager.Instance.KeyMode+1; i++)
         {
             laneBeamEffects[i].Tick();
         }
@@ -355,14 +354,14 @@ public class BMSRenderer : MonoBehaviour
 
         if (state.measureLineObjects.ContainsKey(measure))
         {
-            state.measureLineObjects[measure].transform.localPosition = new Vector3(laneWidth * 7 / 2, top - noteHeight / 2, 0);
+            state.measureLineObjects[measure].transform.localPosition = new Vector3(laneWidth * (GameManager.Instance.KeyMode) / 2 + laneWidth/2, top - noteHeight / 2, 0);
             state.measureLineObjects[measure].SetActive(true);
         }
         else
         {
             var measureLineObject = GetInstance(squarePrefab);
-            measureLineObject.transform.localPosition = new Vector3(laneWidth * 7 / 2, top - noteHeight / 2, 0);
-            measureLineObject.transform.localScale = new Vector3(laneWidth * 8, 0.2f, 0);
+            measureLineObject.transform.localPosition = new Vector3(laneWidth * (GameManager.Instance.KeyMode) / 2 + laneWidth/2, top - noteHeight / 2, 0);
+            measureLineObject.transform.localScale = new Vector3(laneWidth * (GameManager.Instance.KeyMode+1), 0.2f, 0);
             var spriteRenderer = measureLineObject.GetComponent<SpriteRenderer>();
             spriteRenderer.color = new Color(0.5f, 0.5f, 0.5f, 0.5f);
 
@@ -477,7 +476,8 @@ public class BMSRenderer : MonoBehaviour
 
     float LaneToLeft(int lane)
     {
-        return (lane + 1) % 8 * (laneWidth + laneMargin);
+        int lane_ = GameManager.Instance.KeyMode == 5 && lane == 7 ? 5 : lane;
+        return (lane_ + 1) % (GameManager.Instance.KeyMode+1) * (laneWidth + laneMargin) + laneWidth / 2;
     }
 
     float OffsetToTop(double offset)

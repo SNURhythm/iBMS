@@ -266,6 +266,10 @@ public class BMSParser
                 }
 
                 if (laneNumber == -1) continue;
+                if (laneNumber is 5 or 6 or 13 or 14)
+                {
+                    chart.ChartMeta.KeyMode = 7;
+                }
 
                 for (var j = 0; j < data.Length / 2; j++)
                 {
@@ -491,9 +495,6 @@ public class BMSParser
 
     private static class KeyAssign
     {
-        public static readonly int[] Beat5 =
-            { 0, 1, 2, 3, 4, 5, -1, -1, -1, 6, 7, 8, 9, 10, 11, -1, -1, -1 };
-
         public static readonly int[] Beat7 =
             { 0, 1, 2, 3, 4, 7, -1, 5, 6, 8, 9, 10, 11, 12, 15, -1, 13, 14 };
 

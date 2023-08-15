@@ -41,7 +41,8 @@ public class ChartDBHelper
                         min_bpm     REAL,
                         length     INTEGER,
                         rank      INTEGER,
-                        player    INTEGER
+                        player    INTEGER,
+                        keys     INTEGER
                     )";
         var command = connection.CreateCommand();
         command.CommandText = q;
@@ -70,7 +71,8 @@ public class ChartDBHelper
                         min_bpm,
                         length,
                         rank,
-                        player
+                        player,
+                        keys
                     ) VALUES (
                         @path,
                         @md5,
@@ -91,7 +93,8 @@ public class ChartDBHelper
                         @min_bpm,
                         @length,
                         @rank,
-                        @player
+                        @player,
+                        @keys
                     )";
         
         var command = connection.CreateCommand();
@@ -116,67 +119,9 @@ public class ChartDBHelper
         command.Parameters.Add(new SqliteParameter("@length", chartMeta.PlayLength));
         command.Parameters.Add(new SqliteParameter("@rank", chartMeta.Rank));
         command.Parameters.Add(new SqliteParameter("@player", chartMeta.Player));
+        command.Parameters.Add(new SqliteParameter("@keys", chartMeta.KeyMode));
 
         command.ExecuteNonQuery();
-    }
-    
-    public ChartMeta Select(string path)
-    {
-        const string q = @"SELECT
-                        path,
-                        md5,
-                        sha256,
-                        title,
-                        subtitle,
-                        genre,
-                        artist,
-                        sub_artist,
-                        folder,
-                        stage_file,
-                        banner,
-                        back_bmp,
-                        preview,
-                        level,
-                        difficulty,
-                        max_bpm,
-                        min_bpm,
-                        length,
-                        rank,
-                        player
-                        FROM chart_meta WHERE path = @path";
-        var command = connection.CreateCommand();
-        command.CommandText = q;
-        command.Parameters.Add(new SqliteParameter("@path", path));
-        var reader = command.ExecuteReader();
-        if (!reader.Read())
-        {
-            return null;
-        }
-
-        var chartMeta = new ChartMeta
-        {
-            BmsPath = reader.GetString(0),
-            MD5 = reader.GetString(1),
-            SHA256 = reader.GetString(2),
-            Title = reader.GetString(3),
-            SubTitle = reader.GetString(4),
-            Genre = reader.GetString(5),
-            Artist = reader.GetString(6),
-            SubArtist = reader.GetString(7),
-            Folder = reader.GetString(8),
-            StageFile = reader.GetString(9),
-            Banner = reader.GetString(10),
-            BackBmp = reader.GetString(11),
-            Preview = reader.GetString(12),
-            PlayLevel = reader.GetDouble(13),
-            Difficulty = reader.GetInt32(14),
-            MaxBpm = reader.GetDouble(15),
-            MinBpm = reader.GetDouble(16),
-            PlayLength = reader.GetInt64(17),
-            Rank = reader.GetInt32(18),
-            Player = reader.GetInt32(19)
-        };
-        return chartMeta;
     }
     
     public List<ChartMeta> SelectAll()
@@ -201,7 +146,8 @@ public class ChartDBHelper
                         min_bpm,
                         length,
                         rank,
-                        player
+                        player,
+                        keys
                         FROM chart_meta";
         var command = connection.CreateCommand();
         command.CommandText = q;
@@ -248,6 +194,7 @@ public class ChartDBHelper
         chartMeta.PlayLength = GetLongOrNull(reader, 17);
         chartMeta.Rank = GetIntOrNull(reader, 18);
         chartMeta.Player = GetIntOrNull(reader, 19);
+        chartMeta.KeyMode = GetIntOrNull(reader, 20);
         return chartMeta;
     }
 
@@ -272,7 +219,8 @@ public class ChartDBHelper
                         min_bpm,
                         length,
                         rank,
-                        player
+                        player,
+                        keys
                         FROM chart_meta WHERE rtrim(title||' '||subtitle||' '||artist||' '||sub_artist||' '||genre) LIKE @text GROUP BY sha256";
         var command = connection.CreateCommand();
         command.CommandText = q;

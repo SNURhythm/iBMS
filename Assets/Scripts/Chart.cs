@@ -25,6 +25,7 @@ public class ChartMeta
     public double MinBpm;
     public double MaxBpm;
     public int Player = 1;
+    public int KeyMode = 5;
 }
 
 public class Chart

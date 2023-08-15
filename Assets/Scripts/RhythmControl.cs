@@ -110,7 +110,9 @@ public class RhythmControl : MonoBehaviour
     private void Start()
     {
         // make garbage collection manual
-        GarbageCollector.GCMode = GarbageCollector.Mode.Manual;
+        #if !UNITY_EDITOR
+            GarbageCollector.GCMode = GarbageCollector.Mode.Manual;
+        #endif
 #if UNITY_EDITOR
         EditorApplication.pauseStateChanged += OnPauseStateChanged;
         lastPauseState = EditorApplication.isPaused ? PauseState.Paused : PauseState.Unpaused;
@@ -671,7 +673,10 @@ public class RhythmControl : MonoBehaviour
         Resources.UnloadUnusedAssets();
         System.GC.Collect();
         // make garbage collector automatically collect
-        GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
+        
+#if !UNITY_EDITOR
+            GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
+#endif
     }
 
 

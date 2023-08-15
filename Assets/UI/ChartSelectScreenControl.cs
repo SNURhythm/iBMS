@@ -38,7 +38,7 @@ public class ChartSelectScreenControl : MonoBehaviour
     private ListView chartListView;
     private OrderedDictionary imageCache = new OrderedDictionary();
 
-    private string selectedBmsPath;
+    private ChartMeta selectedChartMeta;
 
 
    
@@ -267,7 +267,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                 if (prevSelected != null)
                     prevSelected.RemoveFromClassList("selected");
                 button.AddToClassList("selected");
-                selectedBmsPath = data.BmsPath;
+                selectedChartMeta = data;
                 
                 string newPreviewSoundPath;
                 if (data.Preview != null)
@@ -336,11 +336,12 @@ public class ChartSelectScreenControl : MonoBehaviour
             var titleLabel = chartItemElement.Q<Label>("Title");
             var artistLabel = chartItemElement.Q<Label>("Artist");
             var playLevelLabel = chartItemElement.Q<Label>("PlayLevel");
+            var keysLabel = chartItemElement.Q<Label>("Keys");
             titleLabel.text = "Loading...";
             artistLabel.text = "";
 
 
-            if (selectedBmsPath == chartMeta.BmsPath)
+            if (selectedChartMeta != null && selectedChartMeta.BmsPath == chartMeta.BmsPath)
                 chartItemElement.Q<Button>("Button").AddToClassList("selected");
             
             var trials = new[]
@@ -360,27 +361,33 @@ public class ChartSelectScreenControl : MonoBehaviour
                 }
             }
             
-            var sb = new StringBuilder();
+            var titleSb = new StringBuilder();
+            var keysSb = new StringBuilder();
+            keysSb.Append(chartMeta.KeyMode);
+            keysSb.Append("K");
             if (chartMeta.Player != 1)
             {
-                sb.Append("[DP-Unsupported] ");
+                titleSb.Append("[DP-Unsupported] ");
+                keysSb.Append("DP");
                 // make it gray
                 chartItemElement.Q<Label>("Title").style.color = new StyleColor(Color.gray);
             }
             else
             {
+                keysSb.Append("SP");
                 chartItemElement.Q<Label>("Title").style.color = new StyleColor(Color.white);
             }
-            sb.Append(chartMeta.Title);
+            titleSb.Append(chartMeta.Title);
             if (chartMeta.SubTitle != null)
             {
-                sb.Append(" ");
-                sb.Append(chartMeta.SubTitle);
+                titleSb.Append(" ");
+                titleSb.Append(chartMeta.SubTitle);
             }
 
-            titleLabel.text = sb.ToString();
+            titleLabel.text = titleSb.ToString();
             artistLabel.text = chartMeta.Artist;
             playLevelLabel.text = chartMeta.PlayLevel.ToString();
+            keysLabel.text = keysSb.ToString();
 
 
             chartItemElement.userData = chartMeta;
@@ -418,14 +425,14 @@ public class ChartSelectScreenControl : MonoBehaviour
         startButton.clicked += () =>
         {
             
-            if (selectedBmsPath == null)
+            if (selectedChartMeta == null)
             {
                 Debug.Log("No chart selected");
                 return;
             }
 
-            GameManager.Instance.BmsPath = selectedBmsPath;
-
+            GameManager.Instance.BmsPath = selectedChartMeta.BmsPath;
+            GameManager.Instance.KeyMode = selectedChartMeta.KeyMode;
             StartCoroutine(LoadScene());
 
         };
