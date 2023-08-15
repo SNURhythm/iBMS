@@ -80,7 +80,7 @@ public class BMSParser
     };
 
     private readonly double[] bpmTable = new double[36 * 36];
-    private readonly int[] StopLengthTable = new int[36 * 36];
+    private readonly double[] StopLengthTable = new double[36 * 36];
     private readonly Chart chart = new();
     private readonly string[] wavTable = new string[36 * 36];
     private readonly string[] bmpTable = new string[36 * 36];
@@ -137,6 +137,7 @@ public class BMSParser
 
             if (line.StartsWith("#WAV") || line.StartsWith("#BMP"))
             {
+                if(line.Length < 7) continue;
                 var xx = line.Substring(4, 2);
                 var value = line.Substring(7);
                 ParseHeader(line.Substring(1, 3), xx, value); // TODO: refactor this shit
@@ -151,6 +152,7 @@ public class BMSParser
                 }
                 else
                 {
+                    if (line.Length < 7) continue;
                     var xx = line.Substring(4, 2);
                     var value = line.Substring(7);
                     ParseHeader("BPM", xx, value);
@@ -579,14 +581,22 @@ public class BMSParser
                 break;
             case "STOP":
                 if (value == null || xx == null || xx.Length == 0) throw new Exception("invalid arguments in #STOP");
-                StopLengthTable[DecodeBase36(xx)] = int.Parse(value);
+                StopLengthTable[DecodeBase36(xx)] = double.Parse(value);
                 break;
             case "MIDIFILE":
                 break;
             case "VIDEOFILE":
                 break;
             case "PLAYLEVEL":
-                chart.ChartMeta.PlayLevel = int.Parse(value);
+                try
+                {
+                    chart.ChartMeta.PlayLevel = double.Parse(value);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"invalid playlevel: {value}");
+                }
+
                 break;
             case "RANK":
                 chart.ChartMeta.Rank = int.Parse(value);

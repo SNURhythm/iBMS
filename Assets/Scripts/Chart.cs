@@ -21,7 +21,7 @@ public class ChartMeta
     public string Preview;
     public bool BgaPoorDefault = false;
     public int Difficulty;
-    public int PlayLevel;
+    public double PlayLevel = 3;
     public double MinBpm;
     public double MaxBpm;
 }

@@ -46,7 +46,7 @@ public class ChartDBHelper
                         banner     TEXT,
                         back_bmp    TEXT,
                         preview    TEXT,
-                        level      INTEGER,
+                        level      REAL,
                         difficulty INTEGER,
                         max_bpm     REAL,
                         min_bpm     REAL,
@@ -176,7 +176,7 @@ public class ChartDBHelper
             Banner = reader.GetString(10),
             BackBmp = reader.GetString(11),
             Preview = reader.GetString(12),
-            PlayLevel = reader.GetInt32(13),
+            PlayLevel = reader.GetDouble(13),
             Difficulty = reader.GetInt32(14),
             MaxBpm = reader.GetDouble(15),
             MinBpm = reader.GetDouble(16),
@@ -231,7 +231,7 @@ public class ChartDBHelper
                 chartMeta.Banner = GetStringOrNull(reader, 10);
                 chartMeta.BackBmp = GetStringOrNull(reader, 11);
                 chartMeta.Preview = GetStringOrNull(reader, 12);
-                chartMeta.PlayLevel = GetIntOrNull(reader, 13);
+                chartMeta.PlayLevel = GetDoubleOrNull(reader, 13);
                 chartMeta.Difficulty = GetIntOrNull(reader, 14);
                 chartMeta.MaxBpm = GetDoubleOrNull(reader, 15);
                 chartMeta.MinBpm = GetDoubleOrNull(reader, 16);
@@ -273,6 +273,15 @@ public class ChartDBHelper
             return 0;
         }
         return reader.GetDouble(index);
+    }
+    
+    private float GetFloatOrNull(IDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            return 0;
+        }
+        return reader.GetFloat(index);
     }
     
     private long GetLongOrNull(IDataReader reader, int index)
