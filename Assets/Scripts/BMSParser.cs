@@ -403,13 +403,17 @@ public class BMSParser
             foreach (var (position, timeline) in timelines)
             {
                 if(cancellationToken.IsCancellationRequested) return;
-                minBpm = Math.Min(minBpm, timeline.Bpm);
-                maxBpm = Math.Max(maxBpm, timeline.Bpm);
+
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
                 double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
                 timePassed += interval;
                 timeline.Timing = (long)timePassed;
-                if (timeline.BpmChange) currentBpm = timeline.Bpm;
+                if (timeline.BpmChange)
+                {
+                    currentBpm = timeline.Bpm;
+                    minBpm = Math.Min(minBpm, timeline.Bpm);
+                    maxBpm = Math.Max(maxBpm, timeline.Bpm);
+                }
                 else timeline.Bpm = currentBpm;
 
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition}, bpm: {currentBpm} scale: {measure.Scale} interval: {interval} stop: {timeline.GetStopDuration()}");
