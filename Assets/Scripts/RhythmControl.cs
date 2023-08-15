@@ -13,6 +13,7 @@ using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
+using UnityEngine.Scripting;
 using Debug = UnityEngine.Debug;
 
 class GameState
@@ -108,6 +109,8 @@ public class RhythmControl : MonoBehaviour
     // Start is called before the first frame update
     private void Start()
     {
+        // make garbage collection manual
+        GarbageCollector.GCMode = GarbageCollector.Mode.Manual;
 #if UNITY_EDITOR
         EditorApplication.pauseStateChanged += OnPauseStateChanged;
         lastPauseState = EditorApplication.isPaused ? PauseState.Paused : PauseState.Unpaused;
@@ -667,6 +670,8 @@ public class RhythmControl : MonoBehaviour
         system.release();
         Resources.UnloadUnusedAssets();
         System.GC.Collect();
+        // make garbage collector automatically collect
+        GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
     }
 
 
@@ -772,6 +777,7 @@ public class RhythmControl : MonoBehaviour
 
         bgaPlayer.PauseAll();
         PausePanel.SetActive(true);
+        System.GC.Collect();
     }
 
     void OnApplicationPause(bool pauseStatus)
