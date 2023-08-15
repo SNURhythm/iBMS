@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-public class Chart
+public class ChartMeta
 {
     public string SHA256;
     public string MD5;
@@ -8,11 +8,8 @@ public class Chart
     public string Folder;
     public string Artist;
     public string SubArtist;
-
     public double Bpm;
     public string Genre;
-    
-    public readonly List<Measure> Measures = new();
     public string Title;
     public string SubTitle;
     public int Rank = 3;
@@ -23,10 +20,21 @@ public class Chart
     public string BackBmp;
     public string Preview;
     public bool BgaPoorDefault = false;
-
-    public int TotalNotes;
     public int Difficulty;
     public int PlayLevel;
     public double MinBpm;
     public double MaxBpm;
+}
+
+public class Chart
+{
+    public readonly List<Measure> Measures = new();
+
+    public int TotalNotes;
+    private readonly ChartMeta chartMeta = new ChartMeta();
+
+    public ChartMeta ChartMeta
+    {
+        get { return chartMeta; }
+    }
 }

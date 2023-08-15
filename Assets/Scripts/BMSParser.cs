@@ -118,10 +118,10 @@ public class BMSParser
         var sha256 = SHA256.Create();
         var sha256Hash = sha256.ComputeHash(bytes);
         var sha256Hex = BitConverter.ToString(sha256Hash).Replace("-", "").ToLowerInvariant();
-        chart.MD5 = md5Hex;
-        chart.SHA256 = sha256Hex;
-        chart.BmsPath = path;
-        chart.Folder = Path.GetDirectoryName(path);
+        chart.ChartMeta.MD5 = md5Hex;
+        chart.ChartMeta.SHA256 = sha256Hex;
+        chart.ChartMeta.BmsPath = path;
+        chart.ChartMeta.Folder = Path.GetDirectoryName(path);
         
         // read bytes line by line
         using var br = new StreamReader(new MemoryStream(bytes), encoding);
@@ -168,7 +168,8 @@ public class BMSParser
                         match.Groups.Count > 3 ? match.Groups[3].Value : null;
 
                     ParseHeader(cmd, xx, value);
-                } else if (!metaOnly)
+                }
+                else
                 {
                     match = measureRegex.Match(line);
                     if (match.Success)
@@ -176,14 +177,14 @@ public class BMSParser
                         var measure = int.Parse(match.Groups[1].Value) + (addReadyMeasure ? 1 : 0);
                         var channel = DecodeBase36(match.Groups[2].Value);
                         var value = match.Groups[3].Value;
-                        if (!measures.ContainsKey(measure)) measures.Add(measure, new List<(int channel, string data)>());
+                        if (!measures.ContainsKey(measure))
+                            measures.Add(measure, new List<(int channel, string data)>());
                         measures[measure].Add((channel, value));
                     }
                 }
             }
         }
         br.Close();
-        if (metaOnly) return;
         if (addReadyMeasure)
         {
             measures.Add(0, new List<(int channel, string data)>());
@@ -194,7 +195,7 @@ public class BMSParser
 
         double timePassed = 0;
         int totalNotes = 0;
-        var currentBpm = chart.Bpm;
+        var currentBpm = chart.ChartMeta.Bpm;
         var lastNote = new Note[TempKey];
         var lnStart = new LongNote[TempKey];
         for (var i = 0; i <= lastMeasure; i++)
@@ -274,6 +275,10 @@ public class BMSParser
                     if (!timelines.ContainsKey(position)) timelines.Add(position, new TimeLine(TempKey));
 
                     var timeline = timelines[position];
+                    if (new[] { Channel.LaneAutoplay, Channel.P1InvisibleKeyBase, Channel.P1KeyBase, Channel.P1LongKeyBase, Channel.P1MineKeyBase }.Contains(_channel))
+                    {
+                        if(metaOnly) break;
+                    }
                     switch (_channel)
                     {
                         case Channel.LaneAutoplay:
@@ -347,10 +352,10 @@ public class BMSParser
                             }
                             else
                             {
+                                totalNotes++;
                                 var note = new Note(ToWaveId(val));
                                 timeline.SetNote(laneNumber, note);
                                 lastNote[laneNumber] = note;
-                                totalNotes++;
                             }
 
                             break;
@@ -365,12 +370,12 @@ public class BMSParser
                             {
                                 if (lnStart[laneNumber] == null)
                                 {
+                                    totalNotes++;
                                     var ln = new LongNote(ToWaveId(val));
                                     timeline.SetNote(
                                         laneNumber, ln
                                     );
                                     lnStart[laneNumber] = ln;
-                                    totalNotes++;
                                 }
                                 else
                                 {
@@ -396,10 +401,10 @@ public class BMSParser
 
 
             var lastPosition = 0.0;
-            var minBpm = chart.Bpm;
-            var maxBpm = chart.Bpm;
+            var minBpm = chart.ChartMeta.Bpm;
+            var maxBpm = chart.ChartMeta.Bpm;
             measure.Timing = (long)timePassed;
-            chart.Measures.Add(measure);
+            if(!metaOnly) chart.Measures.Add(measure);
             foreach (var (position, timeline) in timelines)
             {
                 if(cancellationToken.IsCancellationRequested) return;
@@ -418,15 +423,15 @@ public class BMSParser
 
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition}, bpm: {currentBpm} scale: {measure.Scale} interval: {interval} stop: {timeline.GetStopDuration()}");
 
-                measure.Timelines.Add(timeline);
+                if(!metaOnly) measure.Timelines.Add(timeline);
                 timePassed += timeline.GetStopDuration();
                 
-                if (timeline.Notes.Count > 0) chart.PlayLength = (long)timePassed;
+                if (timeline.Notes.Count > 0) chart.ChartMeta.PlayLength = (long)timePassed;
 
                 lastPosition = position;
             }
 
-            if (measure.Timelines.Count == 0)
+            if (!metaOnly && measure.Timelines.Count == 0)
             {
                 var timeline = new TimeLine(TempKey)
                 {
@@ -436,9 +441,9 @@ public class BMSParser
                 measure.Timelines.Add(timeline);
             }
 
-            chart.TotalLength = (long)timePassed;
-            chart.MinBpm = minBpm;
-            chart.MaxBpm = maxBpm;
+            chart.ChartMeta.TotalLength = (long)timePassed;
+            chart.ChartMeta.MinBpm = minBpm;
+            chart.ChartMeta.MaxBpm = maxBpm;
 
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
 
@@ -542,28 +547,28 @@ public class BMSParser
             case "PLAYER":
                 break;
             case "GENRE":
-                chart.Genre = value;
+                chart.ChartMeta.Genre = value;
                 break;
             case "TITLE":
-                chart.Title = value;
+                chart.ChartMeta.Title = value;
                 break;
             case "SUBTITLE":
-                chart.SubTitle = value;
+                chart.ChartMeta.SubTitle = value;
                 break;
             case "ARTIST":
-                chart.Artist = value;
+                chart.ChartMeta.Artist = value;
                 break;
             case "SUBARTIST":
-                chart.SubArtist = value;
+                chart.ChartMeta.SubArtist = value;
                 break;
             case "DIFFICULTY":
-                chart.Difficulty = int.Parse(value);
+                chart.ChartMeta.Difficulty = int.Parse(value);
                 break;
             case "BPM":
                 if (value == null) throw new Exception("invalid BPM value");
                 if (string.IsNullOrEmpty(xx))
                     // chart initial bpm
-                    chart.Bpm = double.Parse(value);
+                    chart.ChartMeta.Bpm = double.Parse(value);
                 else
                 {
                     // Debug.Log($"BPM: {DecodeBase36(xx)} = {double.Parse(value)}");
@@ -581,26 +586,26 @@ public class BMSParser
             case "VIDEOFILE":
                 break;
             case "PLAYLEVEL":
-                chart.PlayLevel = int.Parse(value);
+                chart.ChartMeta.PlayLevel = int.Parse(value);
                 break;
             case "RANK":
-                chart.Rank = int.Parse(value);
+                chart.ChartMeta.Rank = int.Parse(value);
                 break;
             case "TOTAL":
                 break;
             case "VOLWAV":
                 break;
             case "STAGEFILE":
-                chart.StageFile = value;
+                chart.ChartMeta.StageFile = value;
                 break;
             case "BANNER":
-                chart.Banner = value;
+                chart.ChartMeta.Banner = value;
                 break;
             case "BACKBMP":
-                chart.BackBmp = value;
+                chart.ChartMeta.BackBmp = value;
                 break;
             case "PREVIEW":
-                chart.Preview = value;
+                chart.ChartMeta.Preview = value;
                 break;
             case "WAV":
                 if (xx == null || value == null)
@@ -621,7 +626,7 @@ public class BMSParser
                 bmpTable[DecodeBase36(xx)] = value;
                 if (xx == "00")
                 {
-                    chart.BgaPoorDefault = true;
+                    chart.ChartMeta.BgaPoorDefault = true;
                 }
                 break;
             case "RANDOM":

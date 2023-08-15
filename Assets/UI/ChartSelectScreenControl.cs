@@ -38,7 +38,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
     private string selectedBmsPath;
 
-    private List<Chart> charts = new();
+    private List<ChartMeta> chartMetas = new();
     // cancellation tokens for parsing
     private Dictionary<string, CancellationTokenSource> cts = new Dictionary<string, CancellationTokenSource>();
     Sound previewSound;
@@ -71,14 +71,14 @@ public class ChartSelectScreenControl : MonoBehaviour
     {
         ChartDBHelper.Instance.Open();
         var persistDataPath = Application.persistentDataPath;
-        charts = ChartDBHelper.Instance.SelectAll();
+        chartMetas = ChartDBHelper.Instance.SelectAll();
         var info = new DirectoryInfo(persistDataPath);
         var task = Task.Run(() =>
         {
             try
             {
                 var pathSet = new HashSet<string>();
-                foreach (var chart in charts)
+                foreach (var chart in chartMetas)
                 {
                     pathSet.Add(chart.BmsPath);
                 }
@@ -108,14 +108,14 @@ public class ChartSelectScreenControl : MonoBehaviour
                         {
                             // remove from db
                             ChartDBHelper.Instance.Delete(diff.path);
-                            charts.RemoveAll(chart => chart.BmsPath == diff.path);
+                            chartMetas.RemoveAll(chart => chart.BmsPath == diff.path);
                         }
                         else
                         {
                             var parser = new BMSParser();
                             try
                             {
-                                parser.Parse(diff.path);
+                                parser.Parse(diff.path, metaOnly: true);
                             }
                             catch (Exception e)
                             {
@@ -124,12 +124,11 @@ public class ChartSelectScreenControl : MonoBehaviour
                                 continue;
                             }
 
-                            var chart = parser.GetChart();
-                            chart.Measures.Clear(); // don't save measures
-                            charts.Add(chart);
-                            Debug.Log($"{charts.Count} ({chart.Title})");
+                            var chartMeta = parser.GetChart().ChartMeta;
+                            chartMetas.Add(chartMeta);
+                            Debug.Log($"{chartMetas.Count} ({chartMeta.Title})");
                             // insert to db
-                            ChartDBHelper.Instance.Insert(chart);
+                            ChartDBHelper.Instance.Insert(chartMeta);
                         }
                     }
 
@@ -151,7 +150,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             {
                 // update list
                 var chartListView = chartSelectScreen.Q<ListView>("ChartListView");
-                chartListView.itemsSource = charts;
+                chartListView.itemsSource = chartMetas;
                 chartListView.Rebuild();
             });
         });
@@ -165,7 +164,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
         chartListView.selectionType = SelectionType.None;
 
-        chartListView.itemsSource = charts;
+        chartListView.itemsSource = chartMetas;
         chartListView.makeItem = () =>
         {
             
@@ -182,17 +181,17 @@ public class ChartSelectScreenControl : MonoBehaviour
                 if (prevSelected != null)
                     prevSelected.RemoveFromClassList("selected");
                 button.AddToClassList("selected");
-                selectedBmsPath = data.BmsPath;
+                selectedBmsPath = data.ChartMeta.BmsPath;
                 channelGroup.stop();
                 string preview;
-                if (data.Preview != null)
+                if (data.ChartMeta.Preview != null)
                 {
-                    preview = Path.Combine(data.Folder, data.Preview);
+                    preview = Path.Combine(data.ChartMeta.Folder, data.ChartMeta.Preview);
                 }
                 else
                 {
                     // find a mp3/wav/ogg/flac file which starts with "preview"
-                    var files = Directory.GetFiles(data.Folder);
+                    var files = Directory.GetFiles(data.ChartMeta.Folder);
                     preview = files.FirstOrDefault(file =>
                     {
                         var ext = Path.GetExtension(file);
@@ -208,19 +207,19 @@ public class ChartSelectScreenControl : MonoBehaviour
                     FMODUnity.RuntimeManager.CoreSystem.playSound(previewSound, channelGroup, false, out var channel);
                 }
 
-                chartSelectScreen.Q<Label>("ChartTitle").text = data.Title + (data.SubTitle != null ? " " + data.SubTitle : "");
-                chartSelectScreen.Q<Label>("ChartArtist").text = data.Artist;
-                if (data.StageFile != null && data.StageFile.Trim().Length > 0)
+                chartSelectScreen.Q<Label>("ChartTitle").text = data.ChartMeta.Title + (data.ChartMeta.SubTitle != null ? " " + data.ChartMeta.SubTitle : "");
+                chartSelectScreen.Q<Label>("ChartArtist").text = data.ChartMeta.Artist;
+                if (data.ChartMeta.StageFile != null && data.ChartMeta.StageFile.Trim().Length > 0)
                 {
                     chartSelectScreen.Q<Image>("JacketImage").image =
-                        LoadImage(Path.Combine(data.Folder, data.StageFile));
+                        LoadImage(Path.Combine(data.ChartMeta.Folder, data.ChartMeta.StageFile));
                 }
                 else
                 {
                     chartSelectScreen.Q<Image>("JacketImage").image = null;
                 }
 
-                Debug.Log(data.BmsPath);
+                Debug.Log(data.ChartMeta.BmsPath);
             };
             return chartItemElement;
         };
@@ -237,22 +236,22 @@ public class ChartSelectScreenControl : MonoBehaviour
             artistLabel.text = "";
 
 
-            if (selectedBmsPath == chart.BmsPath)
+            if (selectedBmsPath == chart.ChartMeta.BmsPath)
                 chartItemElement.Q<Button>("Button").AddToClassList("selected");
 
-            var title = chart.Title + (chart.SubTitle != null ? " " + chart.SubTitle : "");
-            var artist = chart.Artist;
+            var title = chart.ChartMeta.Title + (chart.ChartMeta.SubTitle != null ? " " + chart.ChartMeta.SubTitle : "");
+            var artist = chart.ChartMeta.Artist;
 
             var trials = new[]
             {
-                chart.Banner,
-                chart.StageFile,
-                chart.BackBmp
+                chart.ChartMeta.Banner,
+                chart.ChartMeta.StageFile,
+                chart.ChartMeta.BackBmp
             };
             foreach (var trial in trials)
             {
                 if (trial == null || trial.Trim().Length == 0) continue;
-                var texture = LoadImage(Path.Combine(chart.Folder, trial));
+                var texture = LoadImage(Path.Combine(chart.ChartMeta.Folder, trial));
                 if (texture != null)
                 {
                     chartItemElement.Q<Image>("BannerImage").image = texture;

@@ -31,7 +31,7 @@ public class ChartDBHelper
 
     public void CreateTable()
     {
-        const string q = @"CREATE TABLE IF NOT EXISTS charts (
+        const string q = @"CREATE TABLE IF NOT EXISTS chart_meta (
                         path       TEXT
                         primary key,
                         md5        TEXT not null,
@@ -61,9 +61,9 @@ public class ChartDBHelper
         command.ExecuteReader();
     }
 
-    public void Insert(Chart chart)
+    public void Insert(ChartMeta chartMeta)
     {
-        const string q = @"INSERT INTO charts (
+        const string q = @"INSERT INTO chart_meta (
                         path,
                         md5,
                         sha256,
@@ -107,30 +107,30 @@ public class ChartDBHelper
         
         var command = connection.CreateCommand();
         command.CommandText = q;
-        command.Parameters.Add(new SqliteParameter("@path", chart.BmsPath));
-        command.Parameters.Add(new SqliteParameter("@md5", chart.MD5));
-        command.Parameters.Add(new SqliteParameter("@sha256", chart.SHA256));
-        command.Parameters.Add(new SqliteParameter("@title", chart.Title));
-        command.Parameters.Add(new SqliteParameter("@subtitle", chart.SubTitle));
-        command.Parameters.Add(new SqliteParameter("@genre", chart.Genre));
-        command.Parameters.Add(new SqliteParameter("@artist", chart.Artist));
-        command.Parameters.Add(new SqliteParameter("@sub_artist", chart.SubArtist));
-        command.Parameters.Add(new SqliteParameter("@folder", chart.Folder));
-        command.Parameters.Add(new SqliteParameter("@stage_file", chart.StageFile));
-        command.Parameters.Add(new SqliteParameter("@banner", chart.Banner));
-        command.Parameters.Add(new SqliteParameter("@back_bmp", chart.BackBmp));
-        command.Parameters.Add(new SqliteParameter("@preview", chart.Preview));
-        command.Parameters.Add(new SqliteParameter("@level", chart.PlayLevel));
-        command.Parameters.Add(new SqliteParameter("@difficulty", chart.Difficulty));
-        command.Parameters.Add(new SqliteParameter("@max_bpm", chart.MaxBpm));
-        command.Parameters.Add(new SqliteParameter("@min_bpm", chart.MinBpm));
-        command.Parameters.Add(new SqliteParameter("@length", chart.PlayLength));
-        command.Parameters.Add(new SqliteParameter("@rank", chart.Rank));
+        command.Parameters.Add(new SqliteParameter("@path", chartMeta.BmsPath));
+        command.Parameters.Add(new SqliteParameter("@md5", chartMeta.MD5));
+        command.Parameters.Add(new SqliteParameter("@sha256", chartMeta.SHA256));
+        command.Parameters.Add(new SqliteParameter("@title", chartMeta.Title));
+        command.Parameters.Add(new SqliteParameter("@subtitle", chartMeta.SubTitle));
+        command.Parameters.Add(new SqliteParameter("@genre", chartMeta.Genre));
+        command.Parameters.Add(new SqliteParameter("@artist", chartMeta.Artist));
+        command.Parameters.Add(new SqliteParameter("@sub_artist", chartMeta.SubArtist));
+        command.Parameters.Add(new SqliteParameter("@folder", chartMeta.Folder));
+        command.Parameters.Add(new SqliteParameter("@stage_file", chartMeta.StageFile));
+        command.Parameters.Add(new SqliteParameter("@banner", chartMeta.Banner));
+        command.Parameters.Add(new SqliteParameter("@back_bmp", chartMeta.BackBmp));
+        command.Parameters.Add(new SqliteParameter("@preview", chartMeta.Preview));
+        command.Parameters.Add(new SqliteParameter("@level", chartMeta.PlayLevel));
+        command.Parameters.Add(new SqliteParameter("@difficulty", chartMeta.Difficulty));
+        command.Parameters.Add(new SqliteParameter("@max_bpm", chartMeta.MaxBpm));
+        command.Parameters.Add(new SqliteParameter("@min_bpm", chartMeta.MinBpm));
+        command.Parameters.Add(new SqliteParameter("@length", chartMeta.PlayLength));
+        command.Parameters.Add(new SqliteParameter("@rank", chartMeta.Rank));
 
         command.ExecuteNonQuery();
     }
     
-    public Chart Select(string path)
+    public ChartMeta Select(string path)
     {
         const string q = @"SELECT
                         path,
@@ -151,7 +151,7 @@ public class ChartDBHelper
                         max_bpm,
                         min_bpm,
                         length,
-                        rank FROM charts WHERE path = @path";
+                        rank FROM chart_meta WHERE path = @path";
         var command = connection.CreateCommand();
         command.CommandText = q;
         command.Parameters.Add(new SqliteParameter("@path", path));
@@ -160,7 +160,8 @@ public class ChartDBHelper
         {
             return null;
         }
-        var chart = new Chart
+
+        var chartMeta = new ChartMeta
         {
             BmsPath = reader.GetString(0),
             MD5 = reader.GetString(1),
@@ -182,10 +183,10 @@ public class ChartDBHelper
             PlayLength = reader.GetInt64(17),
             Rank = reader.GetInt32(18)
         };
-        return chart;
+        return chartMeta;
     }
     
-    public List<Chart> SelectAll()
+    public List<ChartMeta> SelectAll()
     {
         const string q = @"SELECT
                         path,
@@ -206,45 +207,45 @@ public class ChartDBHelper
                         max_bpm,
                         min_bpm,
                         length,
-                        rank FROM charts";
+                        rank FROM chart_meta";
         var command = connection.CreateCommand();
         command.CommandText = q;
         var reader = command.ExecuteReader();
-        var charts = new List<Chart>();
+        var chartMetas = new List<ChartMeta>();
 
         while (reader.Read())
         {
             try
             {
-                var chart = new Chart();
-                chart.BmsPath = reader.GetString(0);
-                chart.MD5 = reader.GetString(1);
-                chart.SHA256 = reader.GetString(2);
-                chart.Title = GetStringOrNull(reader, 3);
-                chart.SubTitle = GetStringOrNull(reader, 4);
-                chart.Genre = GetStringOrNull(reader, 5);
-                chart.Artist = GetStringOrNull(reader, 6);
-                chart.SubArtist = GetStringOrNull(reader, 7);
-                chart.Folder = GetStringOrNull(reader, 8);
-                chart.StageFile = GetStringOrNull(reader, 9);
-                chart.Banner = GetStringOrNull(reader, 10);
-                chart.BackBmp = GetStringOrNull(reader, 11);
-                chart.Preview = GetStringOrNull(reader, 12);
-                chart.PlayLevel = GetIntOrNull(reader, 13);
-                chart.Difficulty = GetIntOrNull(reader, 14);
-                chart.MaxBpm = GetDoubleOrNull(reader, 15);
-                chart.MinBpm = GetDoubleOrNull(reader, 16);
-                chart.PlayLength = GetLongOrNull(reader, 17);
-                chart.Rank = GetIntOrNull(reader, 18);
+                var chartMeta = new ChartMeta();
+                chartMeta.BmsPath = reader.GetString(0);
+                chartMeta.MD5 = reader.GetString(1);
+                chartMeta.SHA256 = reader.GetString(2);
+                chartMeta.Title = GetStringOrNull(reader, 3);
+                chartMeta.SubTitle = GetStringOrNull(reader, 4);
+                chartMeta.Genre = GetStringOrNull(reader, 5);
+                chartMeta.Artist = GetStringOrNull(reader, 6);
+                chartMeta.SubArtist = GetStringOrNull(reader, 7);
+                chartMeta.Folder = GetStringOrNull(reader, 8);
+                chartMeta.StageFile = GetStringOrNull(reader, 9);
+                chartMeta.Banner = GetStringOrNull(reader, 10);
+                chartMeta.BackBmp = GetStringOrNull(reader, 11);
+                chartMeta.Preview = GetStringOrNull(reader, 12);
+                chartMeta.PlayLevel = GetIntOrNull(reader, 13);
+                chartMeta.Difficulty = GetIntOrNull(reader, 14);
+                chartMeta.MaxBpm = GetDoubleOrNull(reader, 15);
+                chartMeta.MinBpm = GetDoubleOrNull(reader, 16);
+                chartMeta.PlayLength = GetLongOrNull(reader, 17);
+                chartMeta.Rank = GetIntOrNull(reader, 18);
 
-                charts.Add(chart);
+                chartMetas.Add(chartMeta);
             }
             catch (Exception e)
             {
                 Debug.LogError("Invalid chart data: " + e.Message);
             }
         }
-        return charts;
+        return chartMetas;
     }
     
     private string GetStringOrNull(IDataReader reader, int index)
@@ -285,7 +286,7 @@ public class ChartDBHelper
 
     public void Clear()
     {
-        const string q = @"DELETE FROM charts";
+        const string q = @"DELETE FROM chart_meta";
         var command = connection.CreateCommand();
         command.CommandText = q;
         command.ExecuteNonQuery();
@@ -293,7 +294,7 @@ public class ChartDBHelper
 
     public void Delete(string path)
     {
-        const string q = @"DELETE FROM charts WHERE path = @path";
+        const string q = @"DELETE FROM chart_meta WHERE path = @path";
         var command = connection.CreateCommand();
         command.CommandText = q;
         command.Parameters.Add(new SqliteParameter("@path", path));

@@ -34,7 +34,7 @@ class GameState
     private long firstTiming = 0;
     public GameState(Chart chart, bool addReadyMeasure)
     {
-        Judge = new Judge(chart.Rank);
+        Judge = new Judge(chart.ChartMeta.Rank);
         if(addReadyMeasure)
             if(chart.Measures.Count > 1)
                 firstTiming = chart.Measures[1].Timelines[0].Timing;
@@ -138,7 +138,7 @@ public class RhythmControl : MonoBehaviour
         var time = Math.Max(currentDspTime, gameState.MaxCompensatedDspTime);
         bmsRenderer.Draw(time);
 
-        if (time >= parser.GetChart().PlayLength + TimeMargin)
+        if (time >= parser.GetChart().ChartMeta.PlayLength + TimeMargin)
         {
             gameState.IsPlaying = false;
             UnloadGame();
@@ -585,7 +585,7 @@ public class RhythmControl : MonoBehaviour
             gameState = new(parser.GetChart(), addReadyMeasure);
             
             Debug.Log("Load Complete");
-            Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
+            Debug.Log($"PlayLength: {parser.GetChart().ChartMeta.PlayLength}, TotalLength: {parser.GetChart().ChartMeta.TotalLength}");
             if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
             {
                 bgaPlayer.OnAllPlayersLoaded += (sender, args) =>
@@ -775,7 +775,7 @@ public class RhythmControl : MonoBehaviour
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
         if (parser.GetChart() != null && isLoaded)
-            GUILayout.Label($"{gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000}/{(parser.GetChart().TotalLength + TimeMargin) / 1000000}", style);
+            GUILayout.Label($"{gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000}/{(parser.GetChart().ChartMeta.TotalLength + TimeMargin) / 1000000}", style);
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
 
