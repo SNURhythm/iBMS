@@ -756,6 +756,7 @@ public class RhythmControl : MonoBehaviour
 
     private int lastRenderedCombo = 0;
     private Judgement lastRenderedJudgement;
+    private string lastComboString = "";
     private void OnGUI()
     {
         if(gameState == null)
@@ -775,7 +776,7 @@ public class RhythmControl : MonoBehaviour
         if (gameState.Combo > 0 || gameState.LatestJudgement == Judgement.BAD ||
             gameState.LatestJudgement == Judgement.KPOOR)
         {
-            if (gameState.Combo != lastRenderedCombo || gameState.LatestJudgement != lastRenderedJudgement)
+            if(gameState.Combo != lastRenderedCombo || gameState.LatestJudgement != lastRenderedJudgement)
             {
                 lastRenderedCombo = gameState.Combo;
                 lastRenderedJudgement = gameState.LatestJudgement;
@@ -783,9 +784,9 @@ public class RhythmControl : MonoBehaviour
                 sb.Append(gameState.Combo);
                 sb.Append(' ');
                 sb.Append(gameState.LatestJudgement);
-                GUILayout.Label(sb.ToString(), style);
+                lastComboString = sb.ToString();
             }
-            
+            GUILayout.Label(lastComboString, style);
         }
 
         GUILayout.FlexibleSpace();
