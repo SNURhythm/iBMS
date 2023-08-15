@@ -24,6 +24,7 @@ public class ChartMeta
     public double PlayLevel = 3;
     public double MinBpm;
     public double MaxBpm;
+    public int Player = 1;
 }
 
 public class Chart

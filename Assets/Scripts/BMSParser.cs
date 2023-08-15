@@ -547,6 +547,7 @@ public class BMSParser
         switch (cmd.ToUpper())
         {
             case "PLAYER":
+                chart.ChartMeta.Player = int.Parse(value);
                 break;
             case "GENRE":
                 chart.ChartMeta.Genre = value;

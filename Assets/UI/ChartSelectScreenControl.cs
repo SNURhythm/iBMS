@@ -122,6 +122,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         UpdateChartCountLabel(chartCountLabel, initialTotal, 0);
         var info = new DirectoryInfo(persistDataPath);
         var token = parseCancellationTokenSource.Token;
+        var thisGameObject = gameObject;
         parseTask = Task.Run(() =>
         {
             try
@@ -193,7 +194,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                             var count1 = loadedCount;
                             if (loadedCount % 10 == 0 || loadedCount <= 10)
                             {
-                                if (!gameObject.IsDestroyed())
+                                if (!thisGameObject.IsDestroyed())
                                 {
                                     UnityMainThreadDispatcher.Instance().Enqueue(() =>
                                     {
@@ -222,7 +223,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         parseTask.ContinueWith(t =>
         {
             Debug.Log("Loading complete");
-            if (!gameObject.IsDestroyed())
+            if (!thisGameObject.IsDestroyed())
             {
                 UnityMainThreadDispatcher.Instance().Enqueue(() =>
                 {
@@ -360,6 +361,16 @@ public class ChartSelectScreenControl : MonoBehaviour
             }
             
             var sb = new StringBuilder();
+            if (chartMeta.Player != 1)
+            {
+                sb.Append("[DP-Unsupported] ");
+                // make it gray
+                chartItemElement.Q<Label>("Title").style.color = new StyleColor(Color.gray);
+            }
+            else
+            {
+                chartItemElement.Q<Label>("Title").style.color = new StyleColor(Color.white);
+            }
             sb.Append(chartMeta.Title);
             if (chartMeta.SubTitle != null)
             {

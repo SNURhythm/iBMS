@@ -41,9 +41,7 @@ public class ChartDBHelper
                         min_bpm     REAL,
                         length     INTEGER,
                         rank      INTEGER,
-                        date       INTEGER,
-                        favorite   INTEGER,
-                        add_date    INTEGER
+                        player    INTEGER
                     )";
         var command = connection.CreateCommand();
         command.CommandText = q;
@@ -71,7 +69,8 @@ public class ChartDBHelper
                         max_bpm,
                         min_bpm,
                         length,
-                        rank
+                        rank,
+                        player
                     ) VALUES (
                         @path,
                         @md5,
@@ -91,7 +90,8 @@ public class ChartDBHelper
                         @max_bpm,
                         @min_bpm,
                         @length,
-                        @rank
+                        @rank,
+                        @player
                     )";
         
         var command = connection.CreateCommand();
@@ -115,6 +115,7 @@ public class ChartDBHelper
         command.Parameters.Add(new SqliteParameter("@min_bpm", chartMeta.MinBpm));
         command.Parameters.Add(new SqliteParameter("@length", chartMeta.PlayLength));
         command.Parameters.Add(new SqliteParameter("@rank", chartMeta.Rank));
+        command.Parameters.Add(new SqliteParameter("@player", chartMeta.Player));
 
         command.ExecuteNonQuery();
     }
@@ -140,7 +141,9 @@ public class ChartDBHelper
                         max_bpm,
                         min_bpm,
                         length,
-                        rank FROM chart_meta WHERE path = @path";
+                        rank,
+                        player
+                        FROM chart_meta WHERE path = @path";
         var command = connection.CreateCommand();
         command.CommandText = q;
         command.Parameters.Add(new SqliteParameter("@path", path));
@@ -170,7 +173,8 @@ public class ChartDBHelper
             MaxBpm = reader.GetDouble(15),
             MinBpm = reader.GetDouble(16),
             PlayLength = reader.GetInt64(17),
-            Rank = reader.GetInt32(18)
+            Rank = reader.GetInt32(18),
+            Player = reader.GetInt32(19)
         };
         return chartMeta;
     }
@@ -196,7 +200,9 @@ public class ChartDBHelper
                         max_bpm,
                         min_bpm,
                         length,
-                        rank FROM chart_meta";
+                        rank,
+                        player
+                        FROM chart_meta";
         var command = connection.CreateCommand();
         command.CommandText = q;
         var reader = command.ExecuteReader();
@@ -241,6 +247,7 @@ public class ChartDBHelper
         chartMeta.MinBpm = GetDoubleOrNull(reader, 16);
         chartMeta.PlayLength = GetLongOrNull(reader, 17);
         chartMeta.Rank = GetIntOrNull(reader, 18);
+        chartMeta.Player = GetIntOrNull(reader, 19);
         return chartMeta;
     }
 
@@ -264,7 +271,9 @@ public class ChartDBHelper
                         max_bpm,
                         min_bpm,
                         length,
-                        rank FROM chart_meta WHERE rtrim(title||' '||subtitle||' '||artist||' '||sub_artist||' '||genre) LIKE @text GROUP BY sha256";
+                        rank,
+                        player
+                        FROM chart_meta WHERE rtrim(title||' '||subtitle||' '||artist||' '||sub_artist||' '||genre) LIKE @text GROUP BY sha256";
         var command = connection.CreateCommand();
         command.CommandText = q;
         command.Parameters.Add(new SqliteParameter("@text", "%" + text + "%"));
