@@ -193,10 +193,14 @@ public class ChartSelectScreenControl : MonoBehaviour
                             var count1 = loadedCount;
                             if (loadedCount % 10 == 0 || loadedCount <= 10)
                             {
-                                UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                                if (!gameObject.IsDestroyed())
                                 {
-                                    UpdateChartCountLabel(chartCountLabel, count1 + initialTotal, count - count1);
-                                });
+                                    UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                                    {
+                                        UpdateChartCountLabel(chartCountLabel, count1 + initialTotal,
+                                            count - count1);
+                                    });
+                                }
                             }
 
                             // insert to db
@@ -218,16 +222,19 @@ public class ChartSelectScreenControl : MonoBehaviour
         parseTask.ContinueWith(t =>
         {
             Debug.Log("Loading complete");
-            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            if (!gameObject.IsDestroyed())
             {
-                var all = ChartDBHelper.Instance.SelectAll();
-                UpdateChartCountLabel(chartCountLabel, all.Count, 0);
-                // update list if search text is empty
-                if (searchBox.value != "") return;
-                Sort(all);
-                chartListView.itemsSource = all;
-                chartListView.Rebuild();
-            });
+                UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                {
+                    var all = ChartDBHelper.Instance.SelectAll();
+                    UpdateChartCountLabel(chartCountLabel, all.Count, 0);
+                    // update list if search text is empty
+                    if (searchBox.value != "") return;
+                    Sort(all);
+                    chartListView.itemsSource = all;
+                    chartListView.Rebuild();
+                });
+            }
         });
         #endregion
 
@@ -472,12 +479,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         SceneManager.sceneUnloaded += (scene) =>
         {
 
-            channelGroup.stop();
-            channelGroup.release();
-            previewSound.release();
-            chartListView.itemsSource = null;
-            Resources.UnloadUnusedAssets();
-            System.GC.Collect();
+
         };
     }
 
@@ -491,6 +493,19 @@ public class ChartSelectScreenControl : MonoBehaviour
     {
         Debug.Log("OnDestroy");
         parseCancellationTokenSource.Cancel();
+        
+        channelGroup.stop();
+        channelGroup.release();
+        previewSound.release();
+        chartListView.itemsSource = null;
+        imageCache.Clear();
+        chartListView.Clear();
+        chartListView.viewController.ClearItems();
+        chartListView = null;
+        chartSelectScreen = null;
+
         parseTask.Wait();
+        Resources.UnloadUnusedAssets();
+        System.GC.Collect();
     }
 }
