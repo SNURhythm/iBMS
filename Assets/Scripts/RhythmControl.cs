@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -526,46 +527,78 @@ public class RhythmControl : MonoBehaviour
             parser.Parse(GameManager.Instance.BmsPath, addReadyMeasure);
             ct.ThrowIfCancellationRequested();
             wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
-
+            
+            var tasks = new Task<(Sound, (int, string))>[36 * 36];
             for (var i = 0; i < 36 * 36; i++)
             {
-                ct.ThrowIfCancellationRequested();
-                var wavFileName = parser.GetWavFileName(i);
-                var bmpFileName = parser.GetBmpFileName(i);
-                if (wavFileName != null)
+                var id = i;
+                tasks[i] = Task.Run(() =>
                 {
-                    byte[] wavBytes = GetWavBytes(Path.Combine(basePath, wavFileName));
-                    if (wavBytes == null)
+                    ct.ThrowIfCancellationRequested();
+                    var wavFileName = parser.GetWavFileName(id);
+                    var bmpFileName = parser.GetBmpFileName(id);
+                    Sound sound = default;
+                    if (wavFileName != null)
                     {
-                        Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(i));
-                    }
-                    else
-                    {
-                        var createSoundExInfo = new CREATESOUNDEXINFO
+                        byte[] wavBytes = GetWavBytes(Path.Combine(basePath, wavFileName));
+                        ct.ThrowIfCancellationRequested();
+                        if (wavBytes == null)
                         {
-                            length = (uint)wavBytes.Length,
-                            cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
-                        };
-                        result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
-                            ref createSoundExInfo, out var sound);
-                        if (result != RESULT.OK)
-                        {
-                            Debug.LogWarning($"createSound failed wav{i}. {result}");
-                            continue;
+                            Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(id));
                         }
-                        wavSounds[i] = sound;
-                        wavSounds[i].setLoopCount(0);
-                        // _system.playSound(wav[i], _channelGroup, true, out channel);
+                        else
+                        {
+                            var createSoundExInfo = new CREATESOUNDEXINFO
+                            {
+                                length = (uint)wavBytes.Length,
+                                cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
+                            };
+                            result = system.createSound(wavBytes,
+                                MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+                                ref createSoundExInfo, out sound);
+                            if (result != RESULT.OK)
+                            {
+                                Debug.LogWarning($"createSound failed wav{id}. {result}");
+                            }
 
-                        
+                            ct.ThrowIfCancellationRequested();
+
+                            // _system.playSound(wav[i], _channelGroup, true, out channel);
+                        }
                     }
-                }
 
-                if (bmpFileName != null)
+                    (int id, string path) bgainfo = (-1, null);
+                    if (bmpFileName != null)
+                    {
+
+                        bgainfo = (id, Path.Combine(basePath, bmpFileName));
+                    }
+
+                    return (sound, bgainfo);
+                }, ct);
+            }
+
+            try
+            {
+                Task.WhenAll(tasks).Wait(ct);
+                for(var i = 0; i < 36 * 36; i++)
                 {
-                    bgas.Add((i, Path.Combine(basePath, bmpFileName)));
+                    var (sound, bgainfo) = ((Sound sound, (int id, string path) bgainfo))tasks[i].Result;
+                    
+                    wavSounds[i] = sound; // To prevent concurrent modification, we should wait for all tasks to complete before assigning wavSounds.
+
+                    if (bgainfo.id != -1)
+                    {
+                        bgas.Add(bgainfo); // Same as above.
+                    }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                Debug.Log("LoadGameTask is canceled");
+                return;
+            }
+
             var ms = blockSize * 1000.0f / frequency;
 
             Debug.Log($"Mixer blockSize        = {ms} ms");
