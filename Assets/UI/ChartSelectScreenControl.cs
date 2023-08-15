@@ -269,6 +269,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
                 if (previewSoundPath != newPreviewSoundPath)
                 {
+                    previewSound.release();
                     channelGroup.stop();
                     if (newPreviewSoundPath != null)
                     {
