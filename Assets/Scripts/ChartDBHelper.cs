@@ -25,7 +25,7 @@ public class ChartDBHelper
     
     public void Close()
     {
-        connection.Close();
+        connection?.Close();
         connection = null;
     }
 
@@ -63,7 +63,7 @@ public class ChartDBHelper
 
     public void Insert(ChartMeta chartMeta)
     {
-        const string q = @"INSERT INTO chart_meta (
+        string q = @"INSERT INTO chart_meta (
                         path,
                         md5,
                         sha256,
@@ -217,26 +217,8 @@ public class ChartDBHelper
         {
             try
             {
-                var chartMeta = new ChartMeta();
-                chartMeta.BmsPath = reader.GetString(0);
-                chartMeta.MD5 = reader.GetString(1);
-                chartMeta.SHA256 = reader.GetString(2);
-                chartMeta.Title = GetStringOrNull(reader, 3);
-                chartMeta.SubTitle = GetStringOrNull(reader, 4);
-                chartMeta.Genre = GetStringOrNull(reader, 5);
-                chartMeta.Artist = GetStringOrNull(reader, 6);
-                chartMeta.SubArtist = GetStringOrNull(reader, 7);
-                chartMeta.Folder = GetStringOrNull(reader, 8);
-                chartMeta.StageFile = GetStringOrNull(reader, 9);
-                chartMeta.Banner = GetStringOrNull(reader, 10);
-                chartMeta.BackBmp = GetStringOrNull(reader, 11);
-                chartMeta.Preview = GetStringOrNull(reader, 12);
-                chartMeta.PlayLevel = GetDoubleOrNull(reader, 13);
-                chartMeta.Difficulty = GetIntOrNull(reader, 14);
-                chartMeta.MaxBpm = GetDoubleOrNull(reader, 15);
-                chartMeta.MinBpm = GetDoubleOrNull(reader, 16);
-                chartMeta.PlayLength = GetLongOrNull(reader, 17);
-                chartMeta.Rank = GetIntOrNull(reader, 18);
+                var chartMeta = ReadChartMeta(reader);
+                
 
                 chartMetas.Add(chartMeta);
             }
@@ -247,51 +229,75 @@ public class ChartDBHelper
         }
         return chartMetas;
     }
-    
-    private string GetStringOrNull(IDataReader reader, int index)
+
+    private ChartMeta ReadChartMeta(IDataReader reader)
     {
-        if (reader.IsDBNull(index))
-        {
-            return null;
-        }
-        return reader.GetString(index);
+        var chartMeta = new ChartMeta();
+        chartMeta.BmsPath = reader.GetString(0);
+        chartMeta.MD5 = reader.GetString(1);
+        chartMeta.SHA256 = reader.GetString(2);
+        chartMeta.Title = GetStringOrNull(reader, 3);
+        chartMeta.SubTitle = GetStringOrNull(reader, 4);
+        chartMeta.Genre = GetStringOrNull(reader, 5);
+        chartMeta.Artist = GetStringOrNull(reader, 6);
+        chartMeta.SubArtist = GetStringOrNull(reader, 7);
+        chartMeta.Folder = GetStringOrNull(reader, 8);
+        chartMeta.StageFile = GetStringOrNull(reader, 9);
+        chartMeta.Banner = GetStringOrNull(reader, 10);
+        chartMeta.BackBmp = GetStringOrNull(reader, 11);
+        chartMeta.Preview = GetStringOrNull(reader, 12);
+        chartMeta.PlayLevel = GetDoubleOrNull(reader, 13);
+        chartMeta.Difficulty = GetIntOrNull(reader, 14);
+        chartMeta.MaxBpm = GetDoubleOrNull(reader, 15);
+        chartMeta.MinBpm = GetDoubleOrNull(reader, 16);
+        chartMeta.PlayLength = GetLongOrNull(reader, 17);
+        chartMeta.Rank = GetIntOrNull(reader, 18);
+        return chartMeta;
     }
-    
-    private int GetIntOrNull(IDataReader reader, int index)
+
+    public List<ChartMeta> Search(string text)
     {
-        if (reader.IsDBNull(index))
+        const string q = @"SELECT path,
+                        md5,
+                        sha256,
+                        title,
+                        subtitle,
+                        genre,
+                        artist,
+                        sub_artist,
+                        folder,
+                        stage_file,
+                        banner,
+                        back_bmp,
+                        preview,
+                        level,
+                        difficulty,
+                        max_bpm,
+                        min_bpm,
+                        length,
+                        rank FROM chart_meta WHERE rtrim(title||' '||subtitle||' '||artist||' '||sub_artist||' '||genre) LIKE @text GROUP BY sha256";
+        var command = connection.CreateCommand();
+        command.CommandText = q;
+        command.Parameters.Add(new SqliteParameter("@text", "%" + text + "%"));
+        var reader = command.ExecuteReader();
+        var chartMetas = new List<ChartMeta>();
+        while (reader.Read())
         {
-            return 0;
+            try
+            {
+                var chartMeta = ReadChartMeta(reader);
+                
+
+                chartMetas.Add(chartMeta);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Invalid chart data: " + e.Message);
+            }
         }
-        return reader.GetInt32(index);
+        return chartMetas;
     }
-    
-    private double GetDoubleOrNull(IDataReader reader, int index)
-    {
-        if (reader.IsDBNull(index))
-        {
-            return 0;
-        }
-        return reader.GetDouble(index);
-    }
-    
-    private float GetFloatOrNull(IDataReader reader, int index)
-    {
-        if (reader.IsDBNull(index))
-        {
-            return 0;
-        }
-        return reader.GetFloat(index);
-    }
-    
-    private long GetLongOrNull(IDataReader reader, int index)
-    {
-        if (reader.IsDBNull(index))
-        {
-            return 0;
-        }
-        return reader.GetInt64(index);
-    }
+   
 
     public void Clear()
     {
@@ -308,5 +314,50 @@ public class ChartDBHelper
         command.CommandText = q;
         command.Parameters.Add(new SqliteParameter("@path", path));
         command.ExecuteNonQuery();
+    }
+    
+    private static string GetStringOrNull(IDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            return null;
+        }
+        return reader.GetString(index);
+    }
+    
+    private static int GetIntOrNull(IDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            return 0;
+        }
+        return reader.GetInt32(index);
+    }
+    
+    private static double GetDoubleOrNull(IDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            return 0;
+        }
+        return reader.GetDouble(index);
+    }
+    
+    private static float GetFloatOrNull(IDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            return 0;
+        }
+        return reader.GetFloat(index);
+    }
+    
+    private static long GetLongOrNull(IDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            return 0;
+        }
+        return reader.GetInt64(index);
     }
 }

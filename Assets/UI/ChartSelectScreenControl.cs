@@ -38,10 +38,11 @@ public class ChartSelectScreenControl : MonoBehaviour
 
     private string selectedBmsPath;
 
-    private List<ChartMeta> chartMetas = new();
+
    
 
     Sound previewSound;
+    string previewSoundPath;
     ChannelGroup channelGroup;
     Task parseTask;
     // cancellation token for parsing
@@ -80,11 +81,33 @@ public class ChartSelectScreenControl : MonoBehaviour
     {
         FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out channelGroup);
     }
+    void UpdateChartCountLabel(Label label, int total, int loadingLeft)
+    {
+        string text = $"{total} chart(s)";
+
+        if(loadingLeft > 0) text += $" (loading: {loadingLeft})";
+        label.text = text;
+    }
+
+    void Sort(List<ChartMeta> chartMetas)
+    {
+        chartMetas.Sort((a, b) => string.Compare(a.Title, b.Title, StringComparison.Ordinal));
+    }
     void OnEnable()
     {
+        chartSelectScreen = GetComponent<UIDocument>().rootVisualElement;
+        var searchBox = chartSelectScreen.Q<TextField>("SearchBox");
+        var chartCountLabel = chartSelectScreen.Q<Label>("ChartCountLabel");
+        chartCountLabel.text = "";
+        
         ChartDBHelper.Instance.Open();
+        #region Update DB
         var persistDataPath = Application.persistentDataPath;
-        chartMetas = ChartDBHelper.Instance.SelectAll();
+        var chartMetas = ChartDBHelper.Instance.SelectAll();
+        // sort by title
+        Sort(chartMetas);
+        var initialTotal = chartMetas.Count;
+        UpdateChartCountLabel(chartCountLabel, initialTotal, 0);
         var info = new DirectoryInfo(persistDataPath);
         var token = parseCancellationTokenSource.Token;
         parseTask = Task.Run(() =>
@@ -126,6 +149,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                     Debug.Log("Scanning...");
                     
                     var errorCount = 0;
+                    var loadedCount = 0;
                     foreach (var diff in diffs)
                     {
                         if (token.IsCancellationRequested)
@@ -137,7 +161,6 @@ public class ChartSelectScreenControl : MonoBehaviour
                         {
                             // remove from db
                             ChartDBHelper.Instance.Delete(diff.path);
-                            chartMetas.RemoveAll(chart => chart.BmsPath == diff.path);
                         }
                         else
                         {
@@ -152,10 +175,18 @@ public class ChartSelectScreenControl : MonoBehaviour
                                 errorCount++;
                                 continue;
                             }
+                            loadedCount++;
 
                             var chartMeta = parser.GetChart().ChartMeta;
-                            chartMetas.Add(chartMeta);
-                            Debug.Log($"{chartMetas.Count} ({chartMeta.Title})");
+                            var count1 = loadedCount;
+                            if (loadedCount % 10 == 0 || loadedCount <= 10)
+                            {
+                                UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                                {
+                                    UpdateChartCountLabel(chartCountLabel, count1 + initialTotal, count - count1);
+                                });
+                            }
+
                             // insert to db
                             ChartDBHelper.Instance.Insert(chartMeta);
                         }
@@ -177,16 +208,23 @@ public class ChartSelectScreenControl : MonoBehaviour
             Debug.Log("Loading complete");
             UnityMainThreadDispatcher.Instance().Enqueue(() =>
             {
-                // update list
+                var all = ChartDBHelper.Instance.SelectAll();
+                UpdateChartCountLabel(chartCountLabel, all.Count, 0);
+                // update list if search text is empty
+                if (searchBox.value != "") return;
                 var chartListView = chartSelectScreen.Q<ListView>("ChartListView");
-                chartListView.itemsSource = chartMetas;
+                Sort(all);
+                chartListView.itemsSource = all;
                 chartListView.Rebuild();
             });
         });
+        #endregion
 
 
 
-        chartSelectScreen = GetComponent<UIDocument>().rootVisualElement;
+
+        
+        #region ChartListView
         var chartListView = chartSelectScreen.Q<ListView>("ChartListView");
         //disable scrollbar
         chartListView.Q<ScrollView>().verticalScrollerVisibility = ScrollerVisibility.Hidden;
@@ -211,17 +249,17 @@ public class ChartSelectScreenControl : MonoBehaviour
                     prevSelected.RemoveFromClassList("selected");
                 button.AddToClassList("selected");
                 selectedBmsPath = data.BmsPath;
-                channelGroup.stop();
-                string preview;
+                
+                string newPreviewSoundPath;
                 if (data.Preview != null)
                 {
-                    preview = Path.Combine(data.Folder, data.Preview);
+                    newPreviewSoundPath = Path.Combine(data.Folder, data.Preview);
                 }
                 else
                 {
                     // find a mp3/wav/ogg/flac file which starts with "preview"
                     var files = Directory.GetFiles(data.Folder);
-                    preview = files.FirstOrDefault(file =>
+                    newPreviewSoundPath = files.FirstOrDefault(file =>
                     {
                         var ext = Path.GetExtension(file);
                         return new[] { ".mp3", ".wav", ".ogg", ".flac" }.Contains(ext) &&
@@ -229,11 +267,19 @@ public class ChartSelectScreenControl : MonoBehaviour
                     });
                 }
 
-                if (preview != null)
+                if (previewSoundPath != newPreviewSoundPath)
                 {
-                    FMODUnity.RuntimeManager.CoreSystem.createSound(preview, FMOD.MODE.DEFAULT,
-                        out previewSound);
-                    FMODUnity.RuntimeManager.CoreSystem.playSound(previewSound, channelGroup, false, out var channel);
+                    channelGroup.stop();
+                    if (newPreviewSoundPath != null)
+                    {
+                        FMODUnity.RuntimeManager.CoreSystem.createSound(newPreviewSoundPath, FMOD.MODE.LOOP_NORMAL,
+                            out previewSound);
+                        FMODUnity.RuntimeManager.CoreSystem.playSound(previewSound, channelGroup, true,
+                            out var channel);
+                        channel.setLoopCount(-1); // loop forever
+                        channel.setPaused(false);
+                    }
+                    previewSoundPath = newPreviewSoundPath;
                 }
 
                 chartSelectScreen.Q<Label>("ChartTitle").text = data.Title + (data.SubTitle != null ? " " + data.SubTitle : "");
@@ -261,16 +307,14 @@ public class ChartSelectScreenControl : MonoBehaviour
             var chartItemElement = (VisualElement)element;
             var titleLabel = chartItemElement.Q<Label>("Title");
             var artistLabel = chartItemElement.Q<Label>("Artist");
+            var playLevelLabel = chartItemElement.Q<Label>("PlayLevel");
             titleLabel.text = "Loading...";
             artistLabel.text = "";
 
 
             if (selectedBmsPath == chartMeta.BmsPath)
                 chartItemElement.Q<Button>("Button").AddToClassList("selected");
-
-            var title = chartMeta.Title + (chartMeta.SubTitle != null ? " " + chartMeta.SubTitle : "");
-            var artist = chartMeta.Artist;
-
+            
             var trials = new[]
             {
                 chartMeta.Banner,
@@ -288,8 +332,9 @@ public class ChartSelectScreenControl : MonoBehaviour
                 }
             }
             
-            titleLabel.text = title;
-            artistLabel.text = artist;
+            titleLabel.text = chartMeta.Title + (chartMeta.SubTitle != null ? " " + chartMeta.SubTitle : "");
+            artistLabel.text = chartMeta.Artist;
+            playLevelLabel.text = chartMeta.PlayLevel.ToString();
 
 
             chartItemElement.userData = chartMeta;
@@ -305,6 +350,23 @@ public class ChartSelectScreenControl : MonoBehaviour
             chartItemElement.Q<Label>("Artist").text = "";
             
         };
+        #endregion
+        
+        #region SearchBox
+
+        searchBox.RegisterValueChangedCallback(evt =>
+        {
+            var keyword = evt.newValue.Trim();
+
+            List<ChartMeta> charts;
+            charts = keyword.Length == 0 ? ChartDBHelper.Instance.SelectAll() : ChartDBHelper.Instance.Search(keyword);
+            Sort(charts);
+            chartListView.itemsSource = charts;
+            chartListView.Rebuild();
+            if (chartListView.itemsSource.Count > 0)
+                chartListView.ScrollToItem(0);
+        });
+        #endregion
         
         var startButton = chartSelectScreen.Q<Button>("StartButton");
         startButton.clicked += () =>
