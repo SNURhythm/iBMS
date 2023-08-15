@@ -2,7 +2,12 @@
 
 public class Chart
 {
+    public string SHA256;
+    public string MD5;
+    public string BmsPath;
+    public string Folder;
     public string Artist;
+    public string SubArtist;
 
     public double Bpm;
     public string Genre;
@@ -18,4 +23,10 @@ public class Chart
     public string BackBmp;
     public string Preview;
     public bool BgaPoorDefault = false;
+
+    public int TotalNotes;
+    public int Difficulty;
+    public int PlayLevel;
+    public double MinBpm;
+    public double MaxBpm;
 }

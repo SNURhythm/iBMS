@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using B83.Image.BMP;
@@ -18,66 +19,143 @@ using Debug = UnityEngine.Debug;
 
 public class ChartSelectScreenControl : MonoBehaviour
 {
-    struct ChartItemProp
+    enum DiffType
     {
-        public Chart Chart;
-        public string RootPath;
-        public string BmsPath;
+        Deleted,
+        New,
     }
-    
-    struct PathProp
+
+    struct Diff
     {
-        public string RootPath;
-        public string BmsPath;
+        public string path;
+        public DiffType type;
     }
+
     public VisualTreeAsset chartItem;
 
     private VisualElement chartSelectScreen;
     private OrderedDictionary imageCache = new OrderedDictionary();
-    private Dictionary<PathProp, ChartItemProp> chartCache = new Dictionary<PathProp, ChartItemProp>();
+
     private string selectedBmsPath;
-    private List<PathProp> paths = new();
+
+    private List<Chart> charts = new();
     // cancellation tokens for parsing
-    private Dictionary<PathProp, CancellationTokenSource> cts = new Dictionary<PathProp, CancellationTokenSource>();
-    private Dictionary<string, string> previews = new Dictionary<string, string>();
-    FMOD.Sound previewSound;
+    private Dictionary<string, CancellationTokenSource> cts = new Dictionary<string, CancellationTokenSource>();
+    Sound previewSound;
     ChannelGroup channelGroup;
-    void FindRecursive(DirectoryInfo directory)
+
+    void FindNew(List<Diff> diffs, HashSet<string> prevPathSet, DirectoryInfo directory)
     {
-        
         var fileInfo = directory.GetFiles();
         foreach (var file in fileInfo)
         {
-            if (file.Name.StartsWith("preview") && new[] { ".mp3", ".ogg", ".flac", ".wav" }.Contains(file.Extension))
-            {
-                if(previews.ContainsKey(directory.FullName)) continue;
-                previews.Add(directory.FullName, file.FullName);
-            }
             if (!new[] { ".bms", ".bme", ".bml" }.Contains(file.Extension)) continue;
-            paths.Add(new PathProp
+            if (!prevPathSet.Contains(file.FullName))
             {
-                RootPath = directory.FullName,
-                BmsPath = file.FullName
-            });
+                diffs.Add(new Diff { path = file.FullName, type = DiffType.New });
+            }
         }
 
         var dirInfo = directory.GetDirectories();
         foreach (var dir in dirInfo)
         {
-            FindRecursive(dir);
+            FindNew(diffs, prevPathSet, dir);
         }
     }
-
+    
     void Awake()
     {
         FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out channelGroup);
     }
     void OnEnable()
     {
+        ChartDBHelper.Instance.Open();
         var persistDataPath = Application.persistentDataPath;
-
+        charts = ChartDBHelper.Instance.SelectAll();
         var info = new DirectoryInfo(persistDataPath);
-        FindRecursive(info);
+        var task = Task.Run(() =>
+        {
+            try
+            {
+                var pathSet = new HashSet<string>();
+                foreach (var chart in charts)
+                {
+                    pathSet.Add(chart.BmsPath);
+                }
+                var diffs = new List<Diff>();
+                FindNew(diffs, pathSet, info);
+                // check deleted
+                var count = diffs.Count;
+                foreach (var path in pathSet)
+                {
+                    if (!File.Exists(path))
+                    {
+                        diffs.Add(new Diff { path = path, type = DiffType.Deleted });
+                    }
+                }
+                var deletedCount = diffs.Count - count;
+                Debug.Log($"Found {count} new charts and {deletedCount} deleted charts");
+
+
+                if (diffs.Count > 0)
+                {
+                    Debug.Log("Scanning...");
+                    
+                    var errorCount = 0;
+                    foreach (var diff in diffs)
+                    {
+                        if (diff.type == DiffType.Deleted)
+                        {
+                            // remove from db
+                            ChartDBHelper.Instance.Delete(diff.path);
+                            charts.RemoveAll(chart => chart.BmsPath == diff.path);
+                        }
+                        else
+                        {
+                            var parser = new BMSParser();
+                            try
+                            {
+                                parser.Parse(diff.path);
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.LogWarning("ParserError: "+e);
+                                errorCount++;
+                                continue;
+                            }
+
+                            var chart = parser.GetChart();
+                            chart.Measures.Clear(); // don't save measures
+                            charts.Add(chart);
+                            Debug.Log($"{charts.Count} ({chart.Title})");
+                            // insert to db
+                            ChartDBHelper.Instance.Insert(chart);
+                        }
+                    }
+
+                    Debug.Log("Scan complete, " + errorCount + " errors");
+                }
+
+
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+            }
+            
+        });
+        task.ContinueWith(t =>
+        {
+            Debug.Log("Loading complete");
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            {
+                // update list
+                var chartListView = chartSelectScreen.Q<ListView>("ChartListView");
+                chartListView.itemsSource = charts;
+                chartListView.Rebuild();
+            });
+        });
+
 
 
         chartSelectScreen = GetComponent<UIDocument>().rootVisualElement;
@@ -87,7 +165,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
         chartListView.selectionType = SelectionType.None;
 
-        chartListView.itemsSource = paths;
+        chartListView.itemsSource = charts;
         chartListView.makeItem = () =>
         {
             
@@ -96,7 +174,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             button.focusable = false;
             button.clicked += () =>
             {
-                var data = (ChartItemProp)chartItemElement.userData;
+                var data = (Chart)chartItemElement.userData;
                 // GameManager.Instance.BmsPath = data.Path;
                 // UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("LoadingScene");
                 // set selection
@@ -107,13 +185,20 @@ public class ChartSelectScreenControl : MonoBehaviour
                 selectedBmsPath = data.BmsPath;
                 channelGroup.stop();
                 string preview;
-                if (data.Chart.Preview != null)
+                if (data.Preview != null)
                 {
-                    preview = Path.Combine(data.RootPath, data.Chart.Preview);
+                    preview = Path.Combine(data.Folder, data.Preview);
                 }
                 else
                 {
-                    preview = previews.ContainsKey(data.RootPath) ? previews[data.RootPath] : null;
+                    // find a mp3/wav/ogg/flac file which starts with "preview"
+                    var files = Directory.GetFiles(data.Folder);
+                    preview = files.FirstOrDefault(file =>
+                    {
+                        var ext = Path.GetExtension(file);
+                        return new[] { ".mp3", ".wav", ".ogg", ".flac" }.Contains(ext) &&
+                               Path.GetFileName(file).StartsWith("preview");
+                    });
                 }
 
                 if (preview != null)
@@ -123,12 +208,12 @@ public class ChartSelectScreenControl : MonoBehaviour
                     FMODUnity.RuntimeManager.CoreSystem.playSound(previewSound, channelGroup, false, out var channel);
                 }
 
-                chartSelectScreen.Q<Label>("ChartTitle").text = data.Chart.Title + (data.Chart.SubTitle != null ? " " + data.Chart.SubTitle : "");
-                chartSelectScreen.Q<Label>("ChartArtist").text = data.Chart.Artist;
-                if (data.Chart.StageFile != null && data.Chart.StageFile.Trim().Length > 0)
+                chartSelectScreen.Q<Label>("ChartTitle").text = data.Title + (data.SubTitle != null ? " " + data.SubTitle : "");
+                chartSelectScreen.Q<Label>("ChartArtist").text = data.Artist;
+                if (data.StageFile != null && data.StageFile.Trim().Length > 0)
                 {
                     chartSelectScreen.Q<Image>("JacketImage").image =
-                        LoadImage(Path.Combine(data.RootPath, data.Chart.StageFile));
+                        LoadImage(Path.Combine(data.Folder, data.StageFile));
                 }
                 else
                 {
@@ -142,111 +227,44 @@ public class ChartSelectScreenControl : MonoBehaviour
         
         chartListView.bindItem = async (element, i) =>
         {
-            Debug.Log(chartListView.childCount);
 
-            ChartItemProp chartItemProp;
             var parseError = false;
-            var path = (PathProp)chartListView.itemsSource[i];
+            Chart chart = (Chart)chartListView.itemsSource[i];
             var chartItemElement = (VisualElement)element;
             var titleLabel = chartItemElement.Q<Label>("Title");
             var artistLabel = chartItemElement.Q<Label>("Artist");
-            titleLabel.text = "로딩중...";
+            titleLabel.text = "Loading...";
             artistLabel.text = "";
-            if(chartCache.ContainsKey(path))
-            {
-                chartItemProp = chartCache[path];
-            }
-            else
-            {
-                var parser = new BMSParser();
-
-                try
-                {
-                    cts.Add(path, new CancellationTokenSource());
-
-                    var task = Task.Run(() =>
-                        {
-                            try
-                            {
-                                parser.Parse(path.BmsPath, metaOnly: true, cancellationToken: cts[path].Token);
-                            }
-                            catch (Exception e)
-                            {
-                                Debug.Log(e);
-                                parseError = true;
-                            }
-                        }
-                        , cts[path].Token);
-                    await task;
-                }
-                catch (AggregateException e)
-                {
-                    Debug.Log(e);
-                    return;
-                }
-
-                if (parseError)
-                {
-                    chartItemProp = new ChartItemProp
-                    {
-                        Chart = null,
-                        RootPath = path.RootPath,
-                        BmsPath = path.BmsPath
-                    };
-                }
-                else
-                {
-
-                    var chart_ = parser.GetChart();
-                    chartItemProp = new ChartItemProp
-                    {
-                        Chart = chart_,
-                        RootPath = path.RootPath,
-                        BmsPath = path.BmsPath
-                    };
-
-                    chartCache.Add(path, chartItemProp);
-                }
-            }
 
 
-            if (selectedBmsPath == chartItemProp.BmsPath)
+            if (selectedBmsPath == chart.BmsPath)
                 chartItemElement.Q<Button>("Button").AddToClassList("selected");
-            var chart = chartItemProp.Chart;
-            string title;
-            string artist;
-            if (chart == null)
-            {
-                title = "Parse Error";
-                artist = "Parse Error";
-            }
-            else
-            {
-                title = chart.Title + (chart.SubTitle != null ? " " + chart.SubTitle : "");
-                artist = chart.Artist;
 
-                var trials = new[]
+            var title = chart.Title + (chart.SubTitle != null ? " " + chart.SubTitle : "");
+            var artist = chart.Artist;
+
+            var trials = new[]
+            {
+                chart.Banner,
+                chart.StageFile,
+                chart.BackBmp
+            };
+            foreach (var trial in trials)
+            {
+                if (trial == null || trial.Trim().Length == 0) continue;
+                var texture = LoadImage(Path.Combine(chart.Folder, trial));
+                if (texture != null)
                 {
-                    chart.Banner,
-                    chart.StageFile,
-                    chart.BackBmp
-                };
-                foreach (var trial in trials)
-                {
-                    if (trial == null || trial.Trim().Length == 0) continue;
-                    var texture = LoadImage(Path.Combine(chartItemProp.RootPath, trial));
-                    if (texture != null)
-                    {
-                        chartItemElement.Q<Image>("BannerImage").image = texture;
-                        break;
-                    }
+                    chartItemElement.Q<Image>("BannerImage").image = texture;
+                    break;
                 }
             }
+            
             titleLabel.text = title;
             artistLabel.text = artist;
 
 
-            chartItemElement.userData = chartItemProp;
+            chartItemElement.userData = chart;
             
         };
         chartListView.unbindItem = (element, i) =>
@@ -257,13 +275,6 @@ public class ChartSelectScreenControl : MonoBehaviour
             chartItemElement.Q<Button>("Button").RemoveFromClassList("selected");
             chartItemElement.Q<Label>("Title").text = "";
             chartItemElement.Q<Label>("Artist").text = "";
-            // cancel parsing
-            var path = (PathProp)chartListView.itemsSource[i];
-            if(cts.ContainsKey(path))
-            {
-                cts[path].Cancel();
-                cts.Remove(path);
-            }
             
         };
         
@@ -346,7 +357,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             channelGroup.stop();
             channelGroup.release();
             previewSound.release();
-
+            ChartDBHelper.Instance.Close();
         };
     }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -99,9 +100,9 @@ public class BMSParser
         
         // <measure number, (channel, data)>
         Dictionary<int, List<(int channel, string data)>> measures = new();
-        FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read);
-        var result = CharsetDetector.DetectFromStream(fs, 1024); // 1024 would be enough for title
-        fs.Seek(0, SeekOrigin.Begin);
+        var bytes = File.ReadAllBytes(path);
+        var result = CharsetDetector.DetectFromBytes(bytes);
+
         var encoding = Encoding.GetEncoding(932); // 932: Shift-JIS
         if (result?.Detected?.Encoding != null)
         {
@@ -110,9 +111,20 @@ public class BMSParser
                 encoding = result.Detected.Encoding;
             }
         }
-
-        // read line by line
-        StreamReader br = new StreamReader(fs, encoding); 
+        
+        var md5 = MD5.Create();
+        var md5Hash = md5.ComputeHash(bytes);
+        var md5Hex = BitConverter.ToString(md5Hash).Replace("-", "").ToLowerInvariant();
+        var sha256 = SHA256.Create();
+        var sha256Hash = sha256.ComputeHash(bytes);
+        var sha256Hex = BitConverter.ToString(sha256Hash).Replace("-", "").ToLowerInvariant();
+        chart.MD5 = md5Hex;
+        chart.SHA256 = sha256Hex;
+        chart.BmsPath = path;
+        chart.Folder = Path.GetDirectoryName(path);
+        
+        // read bytes line by line
+        using var br = new StreamReader(new MemoryStream(bytes), encoding);
 
         while (br.ReadLine() is { } line)
         {
@@ -181,7 +193,7 @@ public class BMSParser
         
 
         double timePassed = 0;
-
+        int totalNotes = 0;
         var currentBpm = chart.Bpm;
         var lastNote = new Note[TempKey];
         var lnStart = new LongNote[TempKey];
@@ -338,6 +350,7 @@ public class BMSParser
                                 var note = new Note(ToWaveId(val));
                                 timeline.SetNote(laneNumber, note);
                                 lastNote[laneNumber] = note;
+                                totalNotes++;
                             }
 
                             break;
@@ -357,6 +370,7 @@ public class BMSParser
                                         laneNumber, ln
                                     );
                                     lnStart[laneNumber] = ln;
+                                    totalNotes++;
                                 }
                                 else
                                 {
@@ -378,15 +392,19 @@ public class BMSParser
                     }
                 }
             }
+            chart.TotalNotes = totalNotes;
 
 
             var lastPosition = 0.0;
+            var minBpm = chart.Bpm;
+            var maxBpm = chart.Bpm;
             measure.Timing = (long)timePassed;
             chart.Measures.Add(measure);
             foreach (var (position, timeline) in timelines)
             {
                 if(cancellationToken.IsCancellationRequested) return;
-
+                minBpm = Math.Min(minBpm, timeline.Bpm);
+                maxBpm = Math.Max(maxBpm, timeline.Bpm);
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
                 double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
                 timePassed += interval;
@@ -415,6 +433,8 @@ public class BMSParser
             }
 
             chart.TotalLength = (long)timePassed;
+            chart.MinBpm = minBpm;
+            chart.MaxBpm = maxBpm;
 
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
 
@@ -513,7 +533,7 @@ public class BMSParser
     private void ParseHeader(string cmd, string xx, string value)
     {
         // Debug.Log($"cmd: {cmd}, xx: {xx} isXXNull: {xx == null}, value: {value}");
-        switch (cmd)
+        switch (cmd.ToUpper())
         {
             case "PLAYER":
                 break;
@@ -528,6 +548,12 @@ public class BMSParser
                 break;
             case "ARTIST":
                 chart.Artist = value;
+                break;
+            case "SUBARTIST":
+                chart.SubArtist = value;
+                break;
+            case "DIFFICULTY":
+                chart.Difficulty = int.Parse(value);
                 break;
             case "BPM":
                 if (value == null) throw new Exception("invalid BPM value");
@@ -551,6 +577,7 @@ public class BMSParser
             case "VIDEOFILE":
                 break;
             case "PLAYLEVEL":
+                chart.PlayLevel = int.Parse(value);
                 break;
             case "RANK":
                 chart.Rank = int.Parse(value);
