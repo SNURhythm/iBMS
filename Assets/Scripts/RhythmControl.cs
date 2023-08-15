@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FMOD;
@@ -151,6 +152,7 @@ public class RhythmControl : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (gameState == null) return;
         // channelGroup.getDSPClock(out var dspclock, out var parentclock);
         system.update();
         // system.getSoftwareFormat(out var samplerate, out _, out _);
@@ -159,7 +161,7 @@ public class RhythmControl : MonoBehaviour
         // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
         // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
-        if (gameState == null) return;
+        
         var availableChannels = MaxBgRealChannels - realChannels;
         if (availableChannels > 0 && gameState.SoundQueue.Count > 0)
         {
@@ -532,7 +534,7 @@ public class RhythmControl : MonoBehaviour
                 var bmpFileName = parser.GetBmpFileName(i);
                 if (wavFileName != null)
                 {
-                    byte[] wavBytes = GetWavBytes(basePath + "/" + wavFileName);
+                    byte[] wavBytes = GetWavBytes(Path.Combine(basePath, wavFileName));
                     if (wavBytes == null)
                     {
                         Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(i));
@@ -561,7 +563,7 @@ public class RhythmControl : MonoBehaviour
 
                 if (bmpFileName != null)
                 {
-                    bgas.Add((i, basePath + "/" + bmpFileName));
+                    bgas.Add((i, Path.Combine(basePath, bmpFileName)));
                 }
             }
             var ms = blockSize * 1000.0f / frequency;
@@ -578,6 +580,7 @@ public class RhythmControl : MonoBehaviour
             {
                 // We should load bga in main thread because it adds VideoPlayer on main camera.
                 // And it is OK to call this method synchronously because VideoPlayer loads video asynchronously.
+                
                 bgaPlayer.Load(id, path);
             }
 
@@ -607,6 +610,7 @@ public class RhythmControl : MonoBehaviour
 
     private void UnloadGame()
     {
+        gameState = null;
         isLoaded = false;
         loadGameTokenSource.Cancel();
         try
@@ -617,16 +621,15 @@ public class RhythmControl : MonoBehaviour
         {
             // ignored
         }
+        bgaPlayer.Dispose();
 
         // release all sounds
         foreach (var (i, sound) in wavSounds)
         {
-            if (sound.hasHandle())
-            {
-                sound.release();
-            }
+            sound.release();
         }
-
+        
+        bmsRenderer.Dispose();
         // release system
         system.release();
         Resources.UnloadUnusedAssets();
@@ -751,6 +754,8 @@ public class RhythmControl : MonoBehaviour
     }
 
 
+    private int lastRenderedCombo = 0;
+    private Judgement lastRenderedJudgement;
     private void OnGUI()
     {
         if(gameState == null)
@@ -767,15 +772,36 @@ public class RhythmControl : MonoBehaviour
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
-        if (gameState.Combo > 0 || gameState.LatestJudgement == Judgement.BAD || gameState.LatestJudgement == Judgement.KPOOR)
-            GUILayout.Label($"{gameState.Combo} {gameState.LatestJudgement}", style);
+        if (gameState.Combo > 0 || gameState.LatestJudgement == Judgement.BAD ||
+            gameState.LatestJudgement == Judgement.KPOOR)
+        {
+            if (gameState.Combo != lastRenderedCombo || gameState.LatestJudgement != lastRenderedJudgement)
+            {
+                lastRenderedCombo = gameState.Combo;
+                lastRenderedJudgement = gameState.LatestJudgement;
+                var sb = new StringBuilder();
+                sb.Append(gameState.Combo);
+                sb.Append(' ');
+                sb.Append(gameState.LatestJudgement);
+                GUILayout.Label(sb.ToString(), style);
+            }
+            
+        }
 
         GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
         if (parser.GetChart() != null && isLoaded)
-            GUILayout.Label($"{gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000}/{(parser.GetChart().ChartMeta.TotalLength + TimeMargin) / 1000000}", style);
+        {
+            var sb = new StringBuilder();
+            sb.Append(gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000);
+            sb.Append('/');
+            sb.Append((parser.GetChart().ChartMeta.TotalLength + TimeMargin) / 1000000);
+            
+            GUILayout.Label(sb.ToString(), style);
+
+        }
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
 

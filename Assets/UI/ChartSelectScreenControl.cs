@@ -5,6 +5,7 @@ using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using B83.Image.BMP;
@@ -34,6 +35,7 @@ public class ChartSelectScreenControl : MonoBehaviour
     public VisualTreeAsset chartItem;
 
     private VisualElement chartSelectScreen;
+    private ListView chartListView;
     private OrderedDictionary imageCache = new OrderedDictionary();
 
     private string selectedBmsPath;
@@ -83,10 +85,17 @@ public class ChartSelectScreenControl : MonoBehaviour
     }
     void UpdateChartCountLabel(Label label, int total, int loadingLeft)
     {
-        string text = $"{total} chart(s)";
+        var sb = new StringBuilder();
+        sb.Append(total);
+        sb.Append(" chart(s)");
+        if (loadingLeft > 0)
+        {
+            sb.Append(" (loading: ");
+            sb.Append(loadingLeft);
+            sb.Append(")");
+        }
 
-        if(loadingLeft > 0) text += $" (loading: {loadingLeft})";
-        label.text = text;
+        label.text = sb.ToString();
     }
 
     void Sort(List<ChartMeta> chartMetas)
@@ -95,12 +104,15 @@ public class ChartSelectScreenControl : MonoBehaviour
     }
     void OnEnable()
     {
+        Resources.UnloadUnusedAssets();
+        System.GC.Collect();
         chartSelectScreen = GetComponent<UIDocument>().rootVisualElement;
+        chartListView = chartSelectScreen.Q<ListView>("ChartListView");
         var searchBox = chartSelectScreen.Q<TextField>("SearchBox");
         var chartCountLabel = chartSelectScreen.Q<Label>("ChartCountLabel");
         chartCountLabel.text = "";
         
-        ChartDBHelper.Instance.Open();
+            
         #region Update DB
         var persistDataPath = Application.persistentDataPath;
         var chartMetas = ChartDBHelper.Instance.SelectAll();
@@ -212,7 +224,6 @@ public class ChartSelectScreenControl : MonoBehaviour
                 UpdateChartCountLabel(chartCountLabel, all.Count, 0);
                 // update list if search text is empty
                 if (searchBox.value != "") return;
-                var chartListView = chartSelectScreen.Q<ListView>("ChartListView");
                 Sort(all);
                 chartListView.itemsSource = all;
                 chartListView.Rebuild();
@@ -225,7 +236,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
         
         #region ChartListView
-        var chartListView = chartSelectScreen.Q<ListView>("ChartListView");
+
         //disable scrollbar
         chartListView.Q<ScrollView>().verticalScrollerVisibility = ScrollerVisibility.Hidden;
 
@@ -283,7 +294,15 @@ public class ChartSelectScreenControl : MonoBehaviour
                     previewSoundPath = newPreviewSoundPath;
                 }
 
-                chartSelectScreen.Q<Label>("ChartTitle").text = data.Title + (data.SubTitle != null ? " " + data.SubTitle : "");
+                var sb = new StringBuilder();
+                sb.Append(data.Title);
+                if (data.SubTitle != null)
+                {
+                    sb.Append(" ");
+                    sb.Append(data.SubTitle);
+                }
+                
+                chartSelectScreen.Q<Label>("ChartTitle").text = sb.ToString();
                 chartSelectScreen.Q<Label>("ChartArtist").text = data.Artist;
                 if (data.StageFile != null && data.StageFile.Trim().Length > 0)
                 {
@@ -333,7 +352,15 @@ public class ChartSelectScreenControl : MonoBehaviour
                 }
             }
             
-            titleLabel.text = chartMeta.Title + (chartMeta.SubTitle != null ? " " + chartMeta.SubTitle : "");
+            var sb = new StringBuilder();
+            sb.Append(chartMeta.Title);
+            if (chartMeta.SubTitle != null)
+            {
+                sb.Append(" ");
+                sb.Append(chartMeta.SubTitle);
+            }
+
+            titleLabel.text = sb.ToString();
             artistLabel.text = chartMeta.Artist;
             playLevelLabel.text = chartMeta.PlayLevel.ToString();
 
@@ -448,7 +475,9 @@ public class ChartSelectScreenControl : MonoBehaviour
             channelGroup.stop();
             channelGroup.release();
             previewSound.release();
-            ChartDBHelper.Instance.Close();
+            chartListView.itemsSource = null;
+            Resources.UnloadUnusedAssets();
+            System.GC.Collect();
         };
     }
 
@@ -463,6 +492,5 @@ public class ChartSelectScreenControl : MonoBehaviour
         Debug.Log("OnDestroy");
         parseCancellationTokenSource.Cancel();
         parseTask.Wait();
-
     }
 }

@@ -29,6 +29,15 @@ public class BGAPlayer
     // event on all players loaded
     public event EventHandler OnAllPlayersLoaded;
 
+    public void Dispose()
+    {
+        state?.Dispose();
+        foreach (var player in players.Values)
+        {
+            player.Stop();
+            player.targetCamera = null;
+        }
+    }
     public void Load(int id, string path)
     {
         // check extension
@@ -57,6 +66,7 @@ public class BGAPlayer
             player.prepareCompleted += OnPrepareCompleted;
             player.errorReceived += (source, message) =>
             {
+                player.Stop();
                 Debug.Log("BGA player " + id + " error: " + message);
                 players.Remove(id);
                 OnPrepareCompleted(player);

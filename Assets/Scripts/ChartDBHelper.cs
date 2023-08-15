@@ -13,22 +13,11 @@ public class ChartDBHelper
     private IDbConnection connection;
     private ChartDBHelper()
     {
-        
-    }
-    
-    public void Open()
-    {
         connection = new SqliteConnection("URI=file:" + Path.Combine(Application.persistentDataPath, "chart.db"));
         connection.Open();
         CreateTable();
     }
     
-    public void Close()
-    {
-        connection?.Close();
-        connection = null;
-    }
-
     public void CreateTable()
     {
         const string q = @"CREATE TABLE IF NOT EXISTS chart_meta (

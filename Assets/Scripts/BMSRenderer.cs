@@ -90,6 +90,12 @@ public class BMSRenderer : MonoBehaviour
         state = new RendererState();
     }
 
+    public void Dispose()
+    {
+        state?.Dispose();
+        state = null;
+    }
+
     private void Start()
     {
         squarePrefab = new GameObject();
