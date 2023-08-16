@@ -247,12 +247,13 @@ public class BMSParser
                 
                 for (var j = 0; j < data.Length / 2; ++j)
                 {
+                    var val = data.Substring(j * 2, 2);
+                    if (val == "00") continue;
+                    
                     var g = Gcd(j, data.Length / 2);
                     // ReSharper disable PossibleLossOfFraction
                     var position = (double)(j / g) / (data.Length / 2 / g);
-                    var val = data.Substring(j * 2, 2);
-                    if (val == "00") continue;
-
+                    
                     if (!timelines.ContainsKey(position)) timelines.Add(position, new TimeLine(TempKey));
 
                     var timeline = timelines[position];
@@ -276,8 +277,6 @@ public class BMSParser
 
                             break;
                         case Channel.BpmChange:
-                            if (val == "00") break;
-
                             timeline.Bpm = Convert.ToInt32(val, 16);
                             // Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
                             timeline.BpmChange = true;
@@ -285,19 +284,15 @@ public class BMSParser
 
                             break;
                         case Channel.BgaPlay:
-                            if (val == "00") break;
                             timeline.BgaBase = DecodeBase36(val);
                             break;
                         case Channel.PoorPlay:
-                            if (val == "00") break;
                             timeline.BgaPoor = DecodeBase36(val);
                             break;
                         case Channel.LayerPlay:
-                            if (val == "00") break;
                             timeline.BgaLayer = DecodeBase36(val);
                             break;
                         case Channel.BpmChangeExtend:
-                            if (val == "00") break;
 
                             timeline.Bpm = bpmTable[DecodeBase36(val)];
                             // Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}, {val}");
@@ -310,7 +305,6 @@ public class BMSParser
                             // Debug.Log($"STOP: {timeline.StopLength}, on measure {i}");
                             break;
                         case Channel.P1KeyBase:
-                            if (val == "00") break;
                             var ch = DecodeBase36(val);
                             if (ch == lnobj)
                             {
@@ -344,13 +338,11 @@ public class BMSParser
 
                             break;
                         case Channel.P1InvisibleKeyBase:
-                            if (val == "00") break;
                             var invNote = new Note(ToWaveId(val));
                             timeline.SetInvisibleNote(laneNumber, invNote);
 
                             break;
                         case Channel.P1LongKeyBase:
-                            if (val == "00") break;
                             if (lntype == 1)
                             {
                                 if (lnStart[laneNumber] == null)
