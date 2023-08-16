@@ -478,13 +478,13 @@ public class RhythmControl : MonoBehaviour
                 // Debug.Log("BgnWav: " + note.Wav+" Timing: "+timeline.Timing);
                 ScheduleSound(timeline.Timing, note.Wav);
             });
-            timeline.InvisibleNotes.ForEach(note =>
-            {
-                if (note == null || note.Wav == BMSParser.NoWav) return;
-                // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
-
-                ScheduleSound(timeline.Timing, note.Wav);
-            });
+            // timeline.InvisibleNotes.ForEach(note =>
+            // {
+            //     if (note == null || note.Wav == BMSParser.NoWav) return;
+            //     // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
+            //
+            //     ScheduleSound(timeline.Timing, note.Wav);
+            // });
         }));
         channelGroup.setPaused(IsPaused);
 
