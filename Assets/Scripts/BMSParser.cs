@@ -248,7 +248,15 @@ public class BMSParser
                 for (var j = 0; j < dataCount; ++j)
                 {
                     var val = data.Substring(j * 2, 2);
-                    if (val == "00") continue;
+                    if (val == "00")
+                    {
+                        if (i == 0 && timelines.Count == 0)
+                        {
+                            timelines.Add(0, new TimeLine(TempKey)); // add ghost timeline to make sure the game gets correct start time
+                        }
+
+                        continue;
+                    }
                     
                     var g = Gcd(j, dataCount);
                     // ReSharper disable PossibleLossOfFraction

@@ -38,9 +38,9 @@ class GameState
     public GameState(Chart chart, bool addReadyMeasure)
     {
         Judge = new Judge(chart.ChartMeta.Rank);
-        if(addReadyMeasure)
-            if(chart.Measures.Count > 1)
-                firstTiming = chart.Measures[1].Timelines[0].Timing;
+        // if(addReadyMeasure)
+        //     if(chart.Measures.Count > 1)
+        //         firstTiming = chart.Measures[1].Timelines[0].Timing;
         
     }
     
@@ -591,7 +591,7 @@ public class RhythmControl : MonoBehaviour
                     var (sound, bgainfo) = ((Sound sound, (int id, string path) bgainfo))tasks[i].Result;
                     
                     wavSounds[i] = sound; // To prevent concurrent modification, we should wait for all tasks to complete before assigning wavSounds.
-
+                    wavSounds[i].setLoopCount(0);
                     if (bgainfo.id != -1)
                     {
                         bgas.Add(bgainfo); // Same as above.
