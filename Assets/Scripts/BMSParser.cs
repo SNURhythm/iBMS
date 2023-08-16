@@ -244,15 +244,15 @@ public class BMSParser
                 {
                     chart.ChartMeta.KeyMode = 7;
                 }
-                
-                for (var j = 0; j < data.Length / 2; ++j)
+                var dataCount = data.Length / 2;
+                for (var j = 0; j < dataCount; ++j)
                 {
                     var val = data.Substring(j * 2, 2);
                     if (val == "00") continue;
                     
-                    var g = Gcd(j, data.Length / 2);
+                    var g = Gcd(j, dataCount);
                     // ReSharper disable PossibleLossOfFraction
-                    var position = (double)(j / g) / (data.Length / 2 / g);
+                    var position = (double)(j / g) / (dataCount / g);
                     
                     if (!timelines.ContainsKey(position)) timelines.Add(position, new TimeLine(TempKey));
 
