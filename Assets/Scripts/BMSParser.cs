@@ -94,43 +94,54 @@ public class BMSParser
 
                 if (!line.StartsWith("#")) continue;
 
-                if (line.StartsWith("#WAV") || line.StartsWith("#BMP"))
+                if (char.IsDigit(line[1]) && char.IsDigit(line[2]) && char.IsDigit(line[3]) && char.IsDigit(line[4]) && char.IsDigit(line[5]) && line[6] == ':')
                 {
-                    if (line.Length < 7) continue;
-                    var xx = line.Substring(4, 2);
+                    var measure = int.Parse(line.Substring(1, 3))
+                                  + (addReadyMeasure ? 1 : 0);
+                    lastMeasure = Math.Max(lastMeasure, measure);
+                    var channel = DecodeBase36(line[4..6]);
                     var value = line.Substring(7);
-                    ParseHeader(line.Substring(1, 3), xx, value); // TODO: refactor this shit
-                }
-                else if (line.StartsWith("#BPM"))
-                {
-                    // #BPMxx value or #BPM value
-                    if (line.Substring(4).StartsWith(' '))
-                    {
-                        var value = line.Substring(5);
-                        ParseHeader("BPM", null, value);
-                    }
-                    else
-                    {
-                        if (line.Length < 7) continue;
-                        var xx = line.Substring(4, 2);
-                        var value = line.Substring(7);
-                        ParseHeader("BPM", xx, value);
-                    }
-
+                    if (!measures.ContainsKey(measure))
+                        measures.Add(measure, new List<(int channel, string data)>());
+                    measures[measure].Add((channel, value));
                 }
                 else
                 {
-                    if (char.IsDigit(line[1]) && char.IsDigit(line[2]) && char.IsDigit(line[3]) && char.IsDigit(line[4]) && char.IsDigit(line[5]) && line[6] == ':')
+                    var upperLine = line.ToUpper();
+                    if (upperLine.StartsWith("#WAV") || upperLine.StartsWith("#BMP"))
                     {
-                        var measure = int.Parse(line.Substring(1, 3))
-                                      + (addReadyMeasure ? 1 : 0);
-                        lastMeasure = Math.Max(lastMeasure, measure);
-                        var channel = DecodeBase36(line[4..6]);
+                        if (metaOnly) continue;
+                        if (line.Length < 7) continue;
+                        var xx = line.Substring(4, 2);
                         var value = line.Substring(7);
-                        if (!measures.ContainsKey(measure))
-                            measures.Add(measure, new List<(int channel, string data)>());
-                        measures[measure].Add((channel, value));
+                        ParseHeader(upperLine.Substring(1, 3), xx, value); // TODO: refactor this shit
                     }
+                    else if (upperLine.StartsWith("#STOP"))
+                    {
+                        // #STOPxx val
+                        if (line.Length < 8) continue;
+                        var xx = line.Substring(5, 2);
+                        var value = line.Substring(8);
+                        ParseHeader("STOP", xx, value);
+                    }
+                    else if (upperLine.StartsWith("#BPM"))
+                    {
+                        // #BPMxx value or #BPM value
+                        if (line.Substring(4).StartsWith(' '))
+                        {
+                            var value = line.Substring(5);
+                            ParseHeader("BPM", null, value);
+                        }
+                        else
+                        {
+                            if (line.Length < 7) continue;
+                            var xx = line.Substring(4, 2);
+                            var value = line.Substring(7);
+                            ParseHeader("BPM", xx, value);
+                        }
+
+                    }
+
                     else
                     {
                         var match = headerRegex.Match(line);
@@ -144,7 +155,6 @@ public class BMSParser
                             ParseHeader(cmd, xx, value);
                         }
                     }
-
                 }
             }
         }
@@ -234,13 +244,14 @@ public class BMSParser
                 {
                     chart.ChartMeta.KeyMode = 7;
                 }
-
+                
                 for (var j = 0; j < data.Length / 2; ++j)
                 {
                     var g = Gcd(j, data.Length / 2);
                     // ReSharper disable PossibleLossOfFraction
                     var position = (double)(j / g) / (data.Length / 2 / g);
                     var val = data.Substring(j * 2, 2);
+                    if (val == "00") continue;
 
                     if (!timelines.ContainsKey(position)) timelines.Add(position, new TimeLine(TempKey));
 
@@ -358,13 +369,15 @@ public class BMSParser
                                 else
                                 {
                                     // TODO: should increase totalNotes if LNMODE is CN or HCN
-                                    lnStart[laneNumber] = null;
-                                    if(metaOnly) break;
+                                    
+                                    
                                     var tail = new LongNote(NoWav)
                                     {
                                         Head = lnStart[laneNumber]
                                     };
                                     lnStart[laneNumber].Tail = tail;
+                                    lnStart[laneNumber] = null;
+                                    if(metaOnly) break;
                                     timeline.SetNote(
                                         laneNumber, tail
                                     );

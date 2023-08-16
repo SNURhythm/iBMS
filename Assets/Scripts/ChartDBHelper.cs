@@ -56,7 +56,7 @@ public class ChartDBHelper
 
     public void Insert(SqliteConnection connection, ChartMeta chartMeta)
     {
-        string q = @"INSERT INTO chart_meta (
+        string q = @"REPLACE INTO chart_meta (
                         path,
                         md5,
                         sha256,
