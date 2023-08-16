@@ -41,7 +41,7 @@ public class ChartSelectScreenControl : MonoBehaviour
     private ChartMeta selectedChartMeta;
 
 
-   
+
 
     Sound previewSound;
     string previewSoundPath;
@@ -78,7 +78,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             FindNew(diffs, prevPathSet, dir, token);
         }
     }
-    
+
     void Awake()
     {
         FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out channelGroup);
@@ -111,11 +111,13 @@ public class ChartSelectScreenControl : MonoBehaviour
         var searchBox = chartSelectScreen.Q<TextField>("SearchBox");
         var chartCountLabel = chartSelectScreen.Q<Label>("ChartCountLabel");
         chartCountLabel.text = "";
-        
-            
+
+
         #region Update DB
         var persistDataPath = Application.persistentDataPath;
-        var chartMetas = ChartDBHelper.Instance.SelectAll();
+        var connection = ChartDBHelper.Instance.Connect();
+        connection.Open();
+        var chartMetas = ChartDBHelper.Instance.SelectAll(connection);
         // sort by title
         Sort(chartMetas);
         var initialTotal = chartMetas.Count;
@@ -160,9 +162,10 @@ public class ChartSelectScreenControl : MonoBehaviour
                 if (diffs.Count > 0)
                 {
                     Debug.Log("Scanning...");
-                    
+
                     var errorCount = 0;
                     var loadedCount = 0;
+                    var tx = connection.BeginTransaction();
                     foreach (var diff in diffs)
                     {
                         if (token.IsCancellationRequested)
@@ -173,7 +176,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                         if (diff.type == DiffType.Deleted)
                         {
                             // remove from db
-                            ChartDBHelper.Instance.Delete(diff.path);
+                            ChartDBHelper.Instance.Delete(connection, diff.path);
                         }
                         else
                         {
@@ -205,9 +208,10 @@ public class ChartSelectScreenControl : MonoBehaviour
                             }
 
                             // insert to db
-                            ChartDBHelper.Instance.Insert(chartMeta);
+                            ChartDBHelper.Instance.Insert(connection, chartMeta);
                         }
                     }
+                    tx.Commit();
 
                     Debug.Log("Scan complete, " + errorCount + " errors");
                 }
@@ -218,7 +222,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             {
                 Debug.LogError(e);
             }
-            
+
         }, token);
         parseTask.ContinueWith(t =>
         {
@@ -227,7 +231,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             {
                 UnityMainThreadDispatcher.Instance().Enqueue(() =>
                 {
-                    var all = ChartDBHelper.Instance.SelectAll();
+                    var all = ChartDBHelper.Instance.SelectAll(connection);
                     UpdateChartCountLabel(chartCountLabel, all.Count, 0);
                     // update list if search text is empty
                     if (searchBox.value != "") return;
@@ -242,7 +246,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
 
 
-        
+
         #region ChartListView
 
         //disable scrollbar
@@ -253,7 +257,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         chartListView.itemsSource = chartMetas;
         chartListView.makeItem = () =>
         {
-            
+
             var chartItemElement = chartItem.CloneTree();
             var button = chartItemElement.Q<Button>("Button");
             button.focusable = false;
@@ -268,7 +272,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                     prevSelected.RemoveFromClassList("selected");
                 button.AddToClassList("selected");
                 selectedChartMeta = data;
-                
+
                 string newPreviewSoundPath;
                 if (data.Preview != null)
                 {
@@ -309,7 +313,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                     sb.Append(" ");
                     sb.Append(data.SubTitle);
                 }
-                
+
                 chartSelectScreen.Q<Label>("ChartTitle").text = sb.ToString();
                 chartSelectScreen.Q<Label>("ChartArtist").text = data.Artist;
                 if (data.StageFile != null && data.StageFile.Trim().Length > 0)
@@ -326,7 +330,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             };
             return chartItemElement;
         };
-        
+
         chartListView.bindItem = async (element, i) =>
         {
 
@@ -343,7 +347,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
             if (selectedChartMeta != null && selectedChartMeta.BmsPath == chartMeta.BmsPath)
                 chartItemElement.Q<Button>("Button").AddToClassList("selected");
-            
+
             var trials = new[]
             {
                 chartMeta.Banner,
@@ -360,7 +364,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                     break;
                 }
             }
-            
+
             var titleSb = new StringBuilder();
             var keysSb = new StringBuilder();
             keysSb.Append(chartMeta.KeyMode);
@@ -391,7 +395,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
 
             chartItemElement.userData = chartMeta;
-            
+
         };
         chartListView.unbindItem = (element, i) =>
         {
@@ -401,10 +405,10 @@ public class ChartSelectScreenControl : MonoBehaviour
             chartItemElement.Q<Button>("Button").RemoveFromClassList("selected");
             chartItemElement.Q<Label>("Title").text = "";
             chartItemElement.Q<Label>("Artist").text = "";
-            
+
         };
         #endregion
-        
+
         #region SearchBox
 
         searchBox.RegisterValueChangedCallback(evt =>
@@ -412,7 +416,7 @@ public class ChartSelectScreenControl : MonoBehaviour
             var keyword = evt.newValue.Trim();
 
             List<ChartMeta> charts;
-            charts = keyword.Length == 0 ? ChartDBHelper.Instance.SelectAll() : ChartDBHelper.Instance.Search(keyword);
+            charts = keyword.Length == 0 ? ChartDBHelper.Instance.SelectAll(connection) : ChartDBHelper.Instance.Search(connection, keyword);
             Sort(charts);
             chartListView.itemsSource = charts;
             chartListView.Rebuild();
@@ -420,11 +424,11 @@ public class ChartSelectScreenControl : MonoBehaviour
                 chartListView.ScrollToItem(0);
         });
         #endregion
-        
+
         var startButton = chartSelectScreen.Q<Button>("StartButton");
         startButton.clicked += () =>
         {
-            
+
             if (selectedChartMeta == null)
             {
                 Debug.Log("No chart selected");
@@ -437,9 +441,8 @@ public class ChartSelectScreenControl : MonoBehaviour
 
         };
 
-
     }
-    
+
     IEnumerator LoadScene()
     {
         var asyncOperation = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("PlayScene");
@@ -504,14 +507,14 @@ public class ChartSelectScreenControl : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+
     }
 
     private void OnDestroy()
     {
         Debug.Log("OnDestroy");
         parseCancellationTokenSource.Cancel();
-        
+
         channelGroup.stop();
         channelGroup.release();
         previewSound.release();

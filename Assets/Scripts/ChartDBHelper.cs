@@ -8,17 +8,22 @@ using System.IO;
 public class ChartDBHelper
 {
     public static ChartDBHelper Instance = new ChartDBHelper();
-    
 
-    private IDbConnection connection;
+
     private ChartDBHelper()
     {
-        connection = new SqliteConnection("URI=file:" + Path.Combine(Application.persistentDataPath, "chart.db"));
+        var connection = Connect();
         connection.Open();
-        CreateTable();
+        CreateTable(connection);
+        connection.Close();
     }
-    
-    public void CreateTable()
+
+    public SqliteConnection Connect()
+    {
+        return new SqliteConnection("URI=file:" + Path.Combine(Application.persistentDataPath, "chart.db"));
+    }
+
+    public void CreateTable(SqliteConnection connection)
     {
         const string q = @"CREATE TABLE IF NOT EXISTS chart_meta (
                         path       TEXT
@@ -49,7 +54,7 @@ public class ChartDBHelper
         command.ExecuteReader();
     }
 
-    public void Insert(ChartMeta chartMeta)
+    public void Insert(SqliteConnection connection, ChartMeta chartMeta)
     {
         string q = @"INSERT INTO chart_meta (
                         path,
@@ -96,7 +101,7 @@ public class ChartDBHelper
                         @player,
                         @keys
                     )";
-        
+
         var command = connection.CreateCommand();
         command.CommandText = q;
         command.Parameters.Add(new SqliteParameter("@path", chartMeta.BmsPath));
@@ -123,8 +128,8 @@ public class ChartDBHelper
 
         command.ExecuteNonQuery();
     }
-    
-    public List<ChartMeta> SelectAll()
+
+    public List<ChartMeta> SelectAll(SqliteConnection connection)
     {
         const string q = @"SELECT
                         path,
@@ -159,7 +164,7 @@ public class ChartDBHelper
             try
             {
                 var chartMeta = ReadChartMeta(reader);
-                
+
 
                 chartMetas.Add(chartMeta);
             }
@@ -198,7 +203,7 @@ public class ChartDBHelper
         return chartMeta;
     }
 
-    public List<ChartMeta> Search(string text)
+    public List<ChartMeta> Search(SqliteConnection connection, string text)
     {
         const string q = @"SELECT path,
                         md5,
@@ -232,7 +237,7 @@ public class ChartDBHelper
             try
             {
                 var chartMeta = ReadChartMeta(reader);
-                
+
 
                 chartMetas.Add(chartMeta);
             }
@@ -243,9 +248,9 @@ public class ChartDBHelper
         }
         return chartMetas;
     }
-   
 
-    public void Clear()
+
+    public void Clear(SqliteConnection connection)
     {
         const string q = @"DELETE FROM chart_meta";
         var command = connection.CreateCommand();
@@ -253,7 +258,7 @@ public class ChartDBHelper
         command.ExecuteNonQuery();
     }
 
-    public void Delete(string path)
+    public void Delete(SqliteConnection connection, string path)
     {
         const string q = @"DELETE FROM chart_meta WHERE path = @path";
         var command = connection.CreateCommand();
@@ -261,7 +266,7 @@ public class ChartDBHelper
         command.Parameters.Add(new SqliteParameter("@path", path));
         command.ExecuteNonQuery();
     }
-    
+
     private static string GetStringOrNull(IDataReader reader, int index)
     {
         if (reader.IsDBNull(index))
@@ -270,7 +275,7 @@ public class ChartDBHelper
         }
         return reader.GetString(index);
     }
-    
+
     private static int GetIntOrNull(IDataReader reader, int index)
     {
         if (reader.IsDBNull(index))
@@ -279,7 +284,7 @@ public class ChartDBHelper
         }
         return reader.GetInt32(index);
     }
-    
+
     private static double GetDoubleOrNull(IDataReader reader, int index)
     {
         if (reader.IsDBNull(index))
@@ -288,7 +293,7 @@ public class ChartDBHelper
         }
         return reader.GetDouble(index);
     }
-    
+
     private static float GetFloatOrNull(IDataReader reader, int index)
     {
         if (reader.IsDBNull(index))
@@ -297,7 +302,7 @@ public class ChartDBHelper
         }
         return reader.GetFloat(index);
     }
-    
+
     private static long GetLongOrNull(IDataReader reader, int index)
     {
         if (reader.IsDBNull(index))
