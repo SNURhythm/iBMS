@@ -183,7 +183,11 @@ public class ChartSelectScreenControl : MonoBehaviour
                             var parser = new BMSParser();
                             try
                             {
+                                var stopWatch = new System.Diagnostics.Stopwatch();
+                                stopWatch.Start();
                                 parser.Parse(diff.path, metaOnly: true, cancellationToken: token);
+                                stopWatch.Stop();
+                                // Debug.Log($"Parsed {diff.path} in {stopWatch.ElapsedMilliseconds} ms");
                             }
                             catch (Exception e)
                             {
