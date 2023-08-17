@@ -1,6 +1,7 @@
 ﻿
 using System;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -127,11 +128,11 @@ public class BMSRenderer : MonoBehaviour
         laneBeamSr.drawMode = SpriteDrawMode.Sliced;
         laneBeamSr.size = new Vector2(laneWidth, NoteArea.transform.localScale.y);
         Debug.Log("keys: " + GameManager.Instance.KeyMode);
-        keyBombs = new GameObject[GameManager.Instance.KeyMode+1];
-        laneBeamEffects = new LaneBeamEffect[GameManager.Instance.KeyMode+1];
-        for (int i = 0; i < GameManager.Instance.KeyMode+1; i++)
+        keyBombs = new GameObject[8];
+        laneBeamEffects = new LaneBeamEffect[8];
+        for (int i = 0; i < 8; i++)
         {
-            if (i != GameManager.Instance.KeyMode-1)
+            if (i != GameManager.Instance.KeyMode-1 && i <= GameManager.Instance.KeyMode)
             {
                 laneDivider.name = "LaneDivider";
                 var newLaneDivider = Instantiate(laneDivider, LaneArea.transform);
@@ -155,7 +156,7 @@ public class BMSRenderer : MonoBehaviour
             var newLaneBeam = Instantiate(laneBeam, LaneArea.transform);
             newLaneBeam.SetActive(true);
             newLaneBeam.transform.localPosition = new Vector3(LaneToLeft(i), NoteArea.transform.localScale.y / 2 - judgeLineHeight / 2, 0);
-            newLaneBeam.GetComponent<SpriteRenderer>().color = noteColors[i==GameManager.Instance.KeyMode?7:i];
+            newLaneBeam.GetComponent<SpriteRenderer>().color = noteColors[i];
             laneBeamEffects[i] = new LaneBeamEffect(newLaneBeam, 0.2f);
             
         }
@@ -184,7 +185,7 @@ public class BMSRenderer : MonoBehaviour
 
     public void UpdateLaneBeam()
     {
-        for (int i = 0; i < GameManager.Instance.KeyMode+1; i++)
+        for (int i = 0; i < 8; i++)
         {
             laneBeamEffects[i].Tick();
         }
@@ -476,8 +477,8 @@ public class BMSRenderer : MonoBehaviour
 
     float LaneToLeft(int lane)
     {
-        int lane_ = GameManager.Instance.KeyMode == 5 && lane == 7 ? 5 : lane;
-        return (lane_ + 1) % (GameManager.Instance.KeyMode+1) * (laneWidth + laneMargin) + laneWidth / 2;
+        if (lane == 7) return laneWidth / 2;
+        return (lane + 1) % (GameManager.Instance.KeyMode+1) * (laneWidth + laneMargin) + laneWidth / 2;
     }
 
     float OffsetToTop(double offset)

@@ -250,9 +250,9 @@ public class BMSParser
                     var val = data.Substring(j * 2, 2);
                     if (val == "00")
                     {
-                        if (i == 0 && timelines.Count == 0)
+                        if (timelines.Count == 0 && j == 0)
                         {
-                            timelines.Add(0, new TimeLine(TempKey)); // add ghost timeline to make sure the game gets correct start time
+                            timelines.Add(0, new TimeLine(TempKey)); // add ghost timeline
                         }
 
                         continue;

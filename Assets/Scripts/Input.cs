@@ -98,10 +98,10 @@ public class Input : MonoBehaviour
                     if (GameManager.Instance.KeyMode == 7) laneNumber = 6;
                     break;
                 case Key.LeftShift:
-                    laneNumber = GameManager.Instance.KeyMode;
+                    laneNumber = 7;
                     break;
             }
-            if (laneNumber >= 0 && laneNumber <= GameManager.Instance.KeyMode)
+            if (laneNumber >= 0)
             {
                 if (!key.IsPressed())
                 {
@@ -153,11 +153,14 @@ public class Input : MonoBehaviour
         var laneWidth = NoteArea.transform.localScale.x / (GameManager.Instance.KeyMode+1);
         var lanePosition = worldPosition.x + laneWidth * (GameManager.Instance.KeyMode+1) / 2; // TODO: use constants
         if (lanePosition < 0 || lanePosition > laneWidth * (GameManager.Instance.KeyMode+1)) return -1;
-        return (int)((lanePosition / laneWidth) + GameManager.Instance.KeyMode) % (GameManager.Instance.KeyMode+1);
+        var laneNumber = (int)((lanePosition / laneWidth) + GameManager.Instance.KeyMode) % (GameManager.Instance.KeyMode+1);
+        Debug.Log("Lane Number: " + laneNumber);
+        if (laneNumber == GameManager.Instance.KeyMode) return 7;
+        return laneNumber;
     }
 
     private readonly Dictionary<int, int> fingerToLane = new();
-    private readonly int[] laneFingerCount = new int[(GameManager.Instance.KeyMode+1)];
+    private readonly int[] laneFingerCount = new int[8];
     private void FingerDown(Finger obj)
     {
         if (GameManager.Instance.AutoPlay) return;
@@ -166,7 +169,7 @@ public class Input : MonoBehaviour
         if (Camera.main == null) return;
 
         var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
-        if (laneNumber < 0 || laneNumber > GameManager.Instance.KeyMode) return;
+        if (laneNumber < 0 || laneNumber >= 8) return;
         if (fingerToLane.ContainsKey(obj.index)) return;
         fingerToLane.Add(obj.index, laneNumber);
         laneFingerCount[laneNumber]++;
