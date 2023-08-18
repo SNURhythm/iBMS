@@ -56,8 +56,13 @@ public class BMSParser
     {
         
         // <measure number, (channel, data)>
-        Dictionary<int, List<(int channel, string data)>> measures = new();
+        List<string> mainDatas = new();
+
+        var stopwatch = new System.Diagnostics.Stopwatch();
+        stopwatch.Start();
         var bytes = File.ReadAllBytes(path);
+        stopwatch.Stop();
+        //Debug.Log($"Read file: {stopwatch.ElapsedMilliseconds}ms");
         var result = CharsetDetector.DetectFromBytes(bytes);
         var encoding = Encoding.GetEncoding(932); // 932: Shift-JIS
         if (result?.Detected?.Encoding != null)
@@ -80,12 +85,12 @@ public class BMSParser
         chart.ChartMeta.Folder = Path.GetDirectoryName(path);
         int lastMeasure = -1;
         // read bytes line by line
-        var stopwatch = new System.Diagnostics.Stopwatch();
+        stopwatch.Reset();
         stopwatch.Start();
-        using (var br = new StreamReader(new MemoryStream(bytes), encoding))
+        using (var br = new StreamReader(GameManager.Instance.GetMemoryStream(bytes), encoding))
         {
-
-            while (br.ReadLine() is { } line)
+            string line;
+            while ((line=br.ReadLine()) != null)
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
@@ -99,11 +104,8 @@ public class BMSParser
                     var measure = int.Parse(line.Substring(1, 3))
                                   + (addReadyMeasure ? 1 : 0);
                     lastMeasure = Math.Max(lastMeasure, measure);
-                    var channel = DecodeBase36(line[4..6]);
-                    var value = line.Substring(7);
-                    if (!measures.ContainsKey(measure))
-                        measures.Add(measure, new List<(int channel, string data)>());
-                    measures[measure].Add((channel, value));
+                    mainDatas.Add(line);
+
                 }
                 else
                 {
@@ -158,13 +160,41 @@ public class BMSParser
                 }
             }
         }
-        // Debug.Log($"Parsing took {stopwatch.ElapsedMilliseconds}ms");
+        
+        LinkedList<(int channel, string data)>[] measures = new LinkedList<(int channel, string data)>[lastMeasure + 1];
+
+        foreach (var line in mainDatas)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            var measure = int.Parse(line.Substring(1, 3))
+                          + (addReadyMeasure ? 1 : 0);
+
+            var channel = DecodeBase36(line[4..6]);
+            var value = line.Substring(7);
+            if (measures[measure] == null)
+            {
+                var list = new LinkedList<(int channel, string data)>();
+                list.AddLast((channel, value));
+                measures[measure] = list;
+            }
+            else
+            {
+
+                measures[measure].AddLast((channel, value));
+            }
+        }
         stopwatch.Stop();
-        stopwatch.Reset();
+        //Debug.Log($"Parsing took {stopwatch.ElapsedMilliseconds}ms");
+        
+        // Debug.Log($"Parsing took {stopwatch.ElapsedMilliseconds}ms");
+
         if (addReadyMeasure)
         {
-            measures.Add(0, new List<(int channel, string data)>());
-            measures[0].Add((Channel.LaneAutoplay, "********"));
+            measures[0] = new LinkedList<(int channel, string data)>();
+            measures[0].AddLast((Channel.LaneAutoplay, "********"));
         }
 
 
@@ -173,13 +203,13 @@ public class BMSParser
         var currentBpm = chart.ChartMeta.Bpm;
         var lastNote = new Note[TempKey];
         var lnStart = new LongNote[TempKey];
-        stopwatch.Start();
+
         for (var i = 0; i <= lastMeasure; ++i)
         {
             if(cancellationToken.IsCancellationRequested) return;
-            if (!measures.ContainsKey(i))
+            if (measures[i] == null)
             {
-                measures.Add(i, new List<(int channel, string data)>());
+                measures[i] = new LinkedList<(int channel, string data)>();
             }
 
             // gcd (int, int)

@@ -1,7 +1,9 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -52,7 +54,8 @@ public class ChartSelectScreenControl : MonoBehaviour
 
     void FindNew(List<Diff> diffs, HashSet<string> prevPathSet, DirectoryInfo directory, CancellationToken token)
     {
-        var fileInfo = directory.GetFiles();
+        var fileInfo = directory.GetFiles("*.*", SearchOption.AllDirectories)
+            .Where(file => new[] { ".bms", ".bme", ".bml" }.Contains(file.Extension));
         foreach (var file in fileInfo)
         {
             if (token.IsCancellationRequested)
@@ -60,22 +63,10 @@ public class ChartSelectScreenControl : MonoBehaviour
                 Debug.Log("Parsing cancelled");
                 return;
             }
-            if (!new[] { ".bms", ".bme", ".bml" }.Contains(file.Extension)) continue;
             if (!prevPathSet.Contains(file.FullName))
             {
-                diffs.Add(new Diff { path = file.FullName, type = DiffType.New });
+                diffs.Add(new Diff { path = file.FullName, type = DiffType.New});
             }
-        }
-
-        var dirInfo = directory.GetDirectories();
-        foreach (var dir in dirInfo)
-        {
-            if (token.IsCancellationRequested)
-            {
-                Debug.Log("Parsing cancelled");
-                return;
-            }
-            FindNew(diffs, prevPathSet, dir, token);
         }
     }
 
@@ -102,6 +93,12 @@ public class ChartSelectScreenControl : MonoBehaviour
     {
         chartMetas.Sort((a, b) => string.Compare(a.Title, b.Title, StringComparison.Ordinal));
     }
+    int errorCount = 0;
+    int loadedCount = 0;
+    int newCount = 0;
+    int initialTotal = 0;
+    private Label chartCountLabel;
+
     void OnEnable()
     {
         Resources.UnloadUnusedAssets();
@@ -109,7 +106,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         chartSelectScreen = GetComponent<UIDocument>().rootVisualElement;
         chartListView = chartSelectScreen.Q<ListView>("ChartListView");
         var searchBox = chartSelectScreen.Q<TextField>("SearchBox");
-        var chartCountLabel = chartSelectScreen.Q<Label>("ChartCountLabel");
+        chartCountLabel = chartSelectScreen.Q<Label>("ChartCountLabel");
         chartCountLabel.text = "";
 
 
@@ -120,7 +117,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         var chartMetas = ChartDBHelper.Instance.SelectAll(connection);
         // sort by title
         Sort(chartMetas);
-        var initialTotal = chartMetas.Count;
+        initialTotal = chartMetas.Count;
         UpdateChartCountLabel(chartCountLabel, initialTotal, 0);
         var info = new DirectoryInfo(persistDataPath);
         var token = parseCancellationTokenSource.Token;
@@ -141,8 +138,9 @@ public class ChartSelectScreenControl : MonoBehaviour
                 }
                 var diffs = new List<Diff>();
                 FindNew(diffs, pathSet, info, token);
+                
                 // check deleted
-                var count = diffs.Count;
+                newCount = diffs.Count;
                 foreach (var path in pathSet)
                 {
                     if (token.IsCancellationRequested)
@@ -155,67 +153,74 @@ public class ChartSelectScreenControl : MonoBehaviour
                         diffs.Add(new Diff { path = path, type = DiffType.Deleted });
                     }
                 }
-                var deletedCount = diffs.Count - count;
-                Debug.Log($"Found {count} new charts and {deletedCount} deleted charts");
+                var deletedCount = diffs.Count - newCount;
+                Debug.Log($"Found {newCount} new charts and {deletedCount} deleted charts");
 
 
                 if (diffs.Count > 0)
                 {
                     Debug.Log("Scanning...");
 
-                    var errorCount = 0;
-                    var loadedCount = 0;
-                    var tx = connection.BeginTransaction();
-                    foreach (var diff in diffs)
+
+                    // var tx = connection.BeginTransaction();
+                    try
                     {
-                        if (token.IsCancellationRequested)
-                        {
-                            Debug.Log("Parsing cancelled");
-                            break;
-                        }
-                        if (diff.type == DiffType.Deleted)
-                        {
-                            // remove from db
-                            ChartDBHelper.Instance.Delete(connection, diff.path);
-                        }
-                        else
-                        {
-                            var parser = new BMSParser();
-                            try
+                        var rangePartitioner = Partitioner.Create(0, diffs.Count, 1000);
+                        Parallel.ForEach(rangePartitioner,
+                            new ParallelOptions
+                                { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
+                            range =>
                             {
-                                var stopWatch = new System.Diagnostics.Stopwatch();
-                                stopWatch.Start();
-                                parser.Parse(diff.path, metaOnly: true, cancellationToken: token);
-                                stopWatch.Stop();
-                                // Debug.Log($"Parsed {diff.path} in {stopWatch.ElapsedMilliseconds} ms");
-                            }
-                            catch (Exception e)
-                            {
-                                Debug.LogWarning("Error while parsing " + diff.path + ": " + e + e.StackTrace);
-                                errorCount++;
-                                continue;
-                            }
-                            loadedCount++;
-
-                            var chartMeta = parser.GetChart().ChartMeta;
-                            var count1 = loadedCount;
-                            if (loadedCount % 10 == 0 || loadedCount <= 10)
-                            {
-                                if (!thisGameObject.IsDestroyed())
+                                for (int i = range.Item1; i < range.Item2; i++)
                                 {
-                                    UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                                    var diff = diffs[i];
+                                    //Debug.Log($"Parsing {diff.path}");
+                                    if (token.IsCancellationRequested)
                                     {
-                                        UpdateChartCountLabel(chartCountLabel, count1 + initialTotal,
-                                            count - count1);
-                                    });
-                                }
-                            }
+                                        //Debug.Log("Parsing cancelled");
+                                        return;
+                                    }
 
-                            // insert to db
-                            ChartDBHelper.Instance.Insert(connection, chartMeta);
-                        }
+                                    if (diff.type == DiffType.Deleted)
+                                    {
+                                        // remove from db
+                                        ChartDBHelper.Instance.Delete(connection, diff.path);
+                                    }
+                                    else
+                                    {
+                                        var parser = new BMSParser();
+                                        try
+                                        {
+                                            var stopWatch = new Stopwatch();
+                                            stopWatch.Start();
+                                            parser.Parse(diff.path, metaOnly: true, cancellationToken: token);
+                                            stopWatch.Stop();
+                                            // Debug.Log($"Parsed {diff.path} in {stopWatch.ElapsedMilliseconds} ms");
+                                        }
+                                        catch (Exception e)
+                                        {
+                                            Debug.LogWarning("Error while parsing " + diff.path + ": " + e + e.StackTrace);
+                                            Interlocked.Increment(ref errorCount);
+                                            return;
+                                        }
+
+                                        Interlocked.Increment(ref loadedCount);
+
+                                        var chartMeta = parser.GetChart().ChartMeta;
+
+
+                                        // insert to db
+                                        ChartDBHelper.Instance.Insert(connection, chartMeta);
+                                    }
+                                }
+                                
+                            });
+                    } catch (OperationCanceledException)
+                    {
+                        Debug.Log("Parsing cancelled");
                     }
-                    tx.Commit();
+
+                    // tx.Commit();
 
                     Debug.Log("Scan complete, " + errorCount + " errors");
                 }
@@ -511,7 +516,8 @@ public class ChartSelectScreenControl : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-
+        UpdateChartCountLabel(chartCountLabel, loadedCount + initialTotal,
+            newCount - loadedCount);
     }
 
     private void OnDestroy()

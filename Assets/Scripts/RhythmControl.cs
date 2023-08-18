@@ -529,7 +529,7 @@ public class RhythmControl : MonoBehaviour
         {
             var basePath = Path.GetDirectoryName(GameManager.Instance.BmsPath);
             ct.ThrowIfCancellationRequested();
-            parser.Parse(GameManager.Instance.BmsPath, addReadyMeasure);
+            parser.Parse(GameManager.Instance.BmsPath, addReadyMeasure:addReadyMeasure, cancellationToken: ct);
             ct.ThrowIfCancellationRequested();
             wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
             
