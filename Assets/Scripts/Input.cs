@@ -125,7 +125,7 @@ public class Input : MonoBehaviour
     obj.currentTouch.screenPosition.y < 0 || obj.currentTouch.screenPosition.y > Screen.height) return;
         // TODO: remove this
 
-        // //Debug.Log("Finger Move[" + obj.index + "]: " + obj.currentTouch.screenPosition + " " + enhancedTouchCnt);
+        // //Logger.Log("Finger Move[" + obj.index + "]: " + obj.currentTouch.screenPosition + " " + enhancedTouchCnt);
         // // draw circle at finger position
         // // first transform finger position to world position
         // // check range
@@ -154,7 +154,7 @@ public class Input : MonoBehaviour
         var lanePosition = worldPosition.x + laneWidth * (GameManager.Instance.KeyMode+1) / 2; // TODO: use constants
         if (lanePosition < 0 || lanePosition > laneWidth * (GameManager.Instance.KeyMode+1)) return -1;
         var laneNumber = (int)((lanePosition / laneWidth) + GameManager.Instance.KeyMode) % (GameManager.Instance.KeyMode+1);
-        Debug.Log("Lane Number: " + laneNumber);
+        Logger.Log("Lane Number: " + laneNumber);
         if (laneNumber == GameManager.Instance.KeyMode) return 7;
         return laneNumber;
     }

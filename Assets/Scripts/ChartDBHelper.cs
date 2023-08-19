@@ -170,7 +170,7 @@ public class ChartDBHelper
             }
             catch (Exception e)
             {
-                Debug.LogError("Invalid chart data: " + e.Message);
+                Logger.LogError("Invalid chart data: " + e.Message);
             }
         }
         return chartMetas;
@@ -243,7 +243,7 @@ public class ChartDBHelper
             }
             catch (Exception e)
             {
-                Debug.LogError("Invalid chart data: " + e.Message);
+                Logger.LogError("Invalid chart data: " + e.Message);
             }
         }
         return chartMetas;

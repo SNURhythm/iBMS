@@ -26,7 +26,7 @@ public class SceneLoader : MonoBehaviour
         var asyncOperation = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(nextScene);
         while (!asyncOperation.isDone)
         {
-            Debug.Log(asyncOperation.progress);
+            Logger.Log(asyncOperation.progress);
             yield return null;
         }
     }

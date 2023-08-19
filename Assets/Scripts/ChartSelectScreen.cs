@@ -58,7 +58,7 @@ public class ChartSelectScreen : MonoBehaviour
         //             chartButton.GetComponent<ChartSelectButton>().ChartTitle.text = chartFile.Name;
         //             chartButton.GetComponent<Button>().onClick.AddListener(() =>
         //             {
-        //                 Debug.Log("Load chart: " + chartFile.FullName);
+        //                 Logger.Log("Load chart: " + chartFile.FullName);
         //                 GameManager.Instance.BmsPath = chartFile.FullName;
         //                 GameManager.Instance.AutoPlay = AutoToggle.isOn;
         //                 GameManager.Instance.KeySound = KeySoundToggle.isOn;

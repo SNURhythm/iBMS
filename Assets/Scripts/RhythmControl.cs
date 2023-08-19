@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,6 +16,7 @@ using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.Scripting;
 using Debug = UnityEngine.Debug;
+using Thread = System.Threading.Thread;
 
 class GameState
 {
@@ -77,7 +79,7 @@ public class RhythmControl : MonoBehaviour
     private byte[] metronomeBytes;
 
 
-    private Dictionary<int, Sound> wavSounds = new();
+    private ConcurrentDictionary<int, Sound> wavSounds = new();
 
 
     private ChannelGroup channelGroup;
@@ -124,7 +126,7 @@ public class RhythmControl : MonoBehaviour
         system.setSoftwareFormat(48000, SPEAKERMODE.DEFAULT, 0);
         // set buffer size
         var result = system.setDSPBufferSize(256, 4);
-        // if (result != FMOD.RESULT.OK) Debug.Log($"setDSPBufferSize failed. {result}");
+        // if (result != FMOD.RESULT.OK) Logger.Log($"setDSPBufferSize failed. {result}");
         system.init(MaxRealChannels, INITFLAGS.NORMAL, IntPtr.Zero);
         bgaPlayer = new();
         bmsRenderer = GetComponent<BMSRenderer>();
@@ -150,7 +152,7 @@ public class RhythmControl : MonoBehaviour
             gameState.IsPlaying = false;
             UnloadGame();
             // go back to chart select
-            Debug.Log("Game Over");
+            Logger.Log("Game Over");
             // load scene
             SceneManager.LoadScene("ChartSelectScene");
         }
@@ -164,9 +166,9 @@ public class RhythmControl : MonoBehaviour
         // system.getSoftwareFormat(out var samplerate, out _, out _);
         // WriteTxt(Application.streamingAssetsPath + "/log.log", "FixedUpdate: " + (double)dspclock / samplerate * 1000 + ", " + Time.time);
 
-        // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
+        // Logger.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
-        // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
+        // Logger.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
         
         var availableChannels = MaxBgRealChannels - realChannels;
         if (availableChannels > 0 && gameState.SoundQueue.Count > 0)
@@ -175,7 +177,7 @@ public class RhythmControl : MonoBehaviour
             {
                 if (gameState.SoundQueue.Count == 0) break;
                 var (startDSP, wav) = gameState.SoundQueue.Dequeue();
-                // Debug.Log("Playing queued sound: " + wav);
+                // Logger.Log("Playing queued sound: " + wav);
                 system.playSound(wavSounds[wav], channelGroup, true, out var channel);
                 channel.setDelay(startDSP, 0);
                 channel.setPaused(false);
@@ -298,11 +300,11 @@ public class RhythmControl : MonoBehaviour
                             ReleaseLane(note.Lane);
 
                     }
-                    // Debug.Log($"Combo: {combo}");
+                    // Logger.Log($"Combo: {combo}");
                 }
 
                 gameState.AutoPlayedTimelines = j + 1;
-                // Debug.Log("Autoplayed: " + autoplayedTimelines);
+                // Logger.Log("Autoplayed: " + autoplayedTimelines);
                 if (gameState.AutoPlayedTimelines == measure.Timelines.Count)
                 {
                     gameState.AutoPlayedTimelines = 0;
@@ -321,7 +323,7 @@ public class RhythmControl : MonoBehaviour
         if (!gameState.IsPlaying) return;
 
 
-        // Debug.Log("Press: " + lane + ", " + inputDelay);
+        // Logger.Log("Press: " + lane + ", " + inputDelay);
         var measures = parser.GetChart().Measures;
         var pressedTime = gameState.GetCompensatedDspTimeMicro(system, channelGroup) - (long)(inputDelay * 1000000);
 
@@ -382,7 +384,7 @@ public class RhythmControl : MonoBehaviour
         if (gameState == null) return;
         if (!gameState.IsPlaying) return;
 
-        // Debug.Log("Release: " + lane);
+        // Logger.Log("Release: " + lane);
         var releasedTime = gameState.GetCompensatedDspTimeMicro(system, channelGroup) - (long)(inputDelay * 1000000);
         var measures = parser.GetChart().Measures;
         for (int i = gameState.PassedMeasureCount; i < measures.Count; i++)
@@ -458,7 +460,7 @@ public class RhythmControl : MonoBehaviour
         }));
         channelGroup.getDSPClock(out gameState.StartDSPClock, out _);
         channelGroup.setPaused(true);
-        Debug.Log("Play");
+        Logger.Log("Play");
         parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
         {
             if (!GameManager.Instance.KeySound)
@@ -466,8 +468,8 @@ public class RhythmControl : MonoBehaviour
                 timeline.Notes.ForEach(note =>
                 {
                     if (note == null || note.Wav == BMSParser.NoWav) return;
-                    // Debug.Log(note.wav + "wav");
-                    // Debug.Log("NoteTiming: " + timeline.timing / 1000);
+                    // Logger.Log(note.wav + "wav");
+                    // Logger.Log("NoteTiming: " + timeline.timing / 1000);
                     ScheduleSound(timeline.Timing, note.Wav);
                 });
             }
@@ -475,13 +477,13 @@ public class RhythmControl : MonoBehaviour
             timeline.BackgroundNotes.ForEach(note =>
             {
                 if (note == null || note.Wav == BMSParser.NoWav) return;
-                // Debug.Log("BgnWav: " + note.Wav+" Timing: "+timeline.Timing);
+                // Logger.Log("BgnWav: " + note.Wav+" Timing: "+timeline.Timing);
                 ScheduleSound(timeline.Timing, note.Wav);
             });
             // timeline.InvisibleNotes.ForEach(note =>
             // {
             //     if (note == null || note.Wav == BMSParser.NoWav) return;
-            //     // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
+            //     // Logger.Log("InvNoteTiming: " + timeline.timing / 1000);
             //
             //     ScheduleSound(timeline.Timing, note.Wav);
             // });
@@ -503,7 +505,7 @@ public class RhythmControl : MonoBehaviour
         };
         var result = system.createSound(metronomeBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
             ref createSoundExInfo, out var sound);
-        if (result != RESULT.OK) Debug.Log($"createSound failed. {result}");
+        if (result != RESULT.OK) Logger.Log($"createSound failed. {result}");
         return sound;
     }
 
@@ -517,12 +519,12 @@ public class RhythmControl : MonoBehaviour
             defaultDecodeBufferSize = 32
         };
         var result = system.setAdvancedSettings(ref advancedSettings);
-        if (result != RESULT.OK) Debug.Log($"setAdvancedSettings failed. {result}");
+        if (result != RESULT.OK) Logger.Log($"setAdvancedSettings failed. {result}");
 
         system.getDSPBufferSize(out var blockSize, out var numBlocks);
         system.getSoftwareFormat(out var frequency, out _, out _);
         system.getMasterChannelGroup(out channelGroup);
-        var bgas = new List<(int id, string path)>();
+        var bgas = new ConcurrentBag<(int id, string path)>();
         
         CancellationToken ct = loadGameTokenSource.Token;
         loadGameTask = Task.Run(() =>
@@ -533,12 +535,73 @@ public class RhythmControl : MonoBehaviour
             ct.ThrowIfCancellationRequested();
             wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
             
-            var tasks = new Task<(Sound, (int, string))>[36 * 36];
+            // var tasks = new Task<(Sound, (int, string))>[36 * 36];
+            int[] ids = new int[36 * 36];
             for (var i = 0; i < 36 * 36; i++)
             {
-                var id = i;
-                tasks[i] = Task.Run(() =>
+                ids[i] = i;
+                
+                
+                // var id = i;
+                // tasks[i] = Task.Run(() =>
+                // {
+                //     Logger.Log("Core:"+Thread.GetCurrentProcessorId());
+                //     ct.ThrowIfCancellationRequested();
+                //     var wavFileName = parser.GetWavFileName(id);
+                //     var bmpFileName = parser.GetBmpFileName(id);
+                //     Sound sound = default;
+                //     if (wavFileName != null)
+                //     {
+                //         byte[] wavBytes = GetWavBytes(Path.Combine(basePath, wavFileName));
+                //         ct.ThrowIfCancellationRequested();
+                //         if (wavBytes == null)
+                //         {
+                //             Logger.LogWarning("wavBytes is null:" + parser.GetWavFileName(id));
+                //         }
+                //         else
+                //         {
+                //             var createSoundExInfo = new CREATESOUNDEXINFO
+                //             {
+                //                 length = (uint)wavBytes.Length,
+                //                 cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
+                //             };
+                //             result = system.createSound(wavBytes,
+                //                 MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+                //                 ref createSoundExInfo, out sound);
+                //             if (result != RESULT.OK)
+                //             {
+                //                 Logger.LogWarning($"createSound failed wav{id}. {result}");
+                //             }
+                //
+                //             ct.ThrowIfCancellationRequested();
+                //
+                //             // _system.playSound(wav[i], _channelGroup, true, out channel);
+                //         }
+                //     }
+                //
+                //     (int id, string path) bgainfo = (-1, null);
+                //     if (bmpFileName != null)
+                //     {
+                //
+                //         bgainfo = (id, Path.Combine(basePath, bmpFileName));
+                //     }
+                //
+                //     return (sound, bgainfo);
+                // }, ct);
+            }
+            var partitioner = Partitioner.Create(0, 36 * 36);
+            Parallel.ForEach(partitioner, new ParallelOptions
+            {
+                CancellationToken = ct,
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            },(range, loopState) =>
+            {
+                List<(int id, Sound sound)> tempSoundBag = new List<(int id, Sound sound)>();
+                List<(int id, string path)> tempBgaBag = new List<(int id, string path)>();
+                for (var i = range.Item1; i < range.Item2; i++)
                 {
+                    var id = ids[i];
+                    Logger.Log("Core:"+Thread.GetCurrentProcessorId());
                     ct.ThrowIfCancellationRequested();
                     var wavFileName = parser.GetWavFileName(id);
                     var bmpFileName = parser.GetBmpFileName(id);
@@ -549,7 +612,7 @@ public class RhythmControl : MonoBehaviour
                         ct.ThrowIfCancellationRequested();
                         if (wavBytes == null)
                         {
-                            Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(id));
+                            Logger.LogWarning("wavBytes is null:" + parser.GetWavFileName(id));
                         }
                         else
                         {
@@ -563,52 +626,59 @@ public class RhythmControl : MonoBehaviour
                                 ref createSoundExInfo, out sound);
                             if (result != RESULT.OK)
                             {
-                                Debug.LogWarning($"createSound failed wav{id}. {result}");
+                                Logger.LogWarning($"createSound failed wav{id}. {result}");
                             }
 
                             ct.ThrowIfCancellationRequested();
 
                             // _system.playSound(wav[i], _channelGroup, true, out channel);
                         }
+                        tempSoundBag.Add((id, sound));
                     }
-
-                    (int id, string path) bgainfo = (-1, null);
+                    
                     if (bmpFileName != null)
                     {
-
-                        bgainfo = (id, Path.Combine(basePath, bmpFileName));
+                        tempBgaBag.Add((id, Path.Combine(basePath, bmpFileName)));
                     }
-
-                    return (sound, bgainfo);
-                }, ct);
-            }
-
-            try
-            {
-                Task.WhenAll(tasks).Wait(ct);
-                for(var i = 0; i < 36 * 36; i++)
-                {
-                    var (sound, bgainfo) = ((Sound sound, (int id, string path) bgainfo))tasks[i].Result;
                     
-                    wavSounds[i] = sound; // To prevent concurrent modification, we should wait for all tasks to complete before assigning wavSounds.
-                    wavSounds[i].setLoopCount(0);
-                    if (bgainfo.id != -1)
-                    {
-                        bgas.Add(bgainfo); // Same as above.
-                    }
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.Log("LoadGameTask is canceled");
-                return;
-            }
+                foreach (var (id, sound) in tempSoundBag)
+                {
+                    wavSounds[id] = sound;
+                    wavSounds[id].setLoopCount(0);
+                }
+                foreach (var (id, path) in tempBgaBag)
+                {
+                    bgas.Add((id, path));
+                }
+            });
+
+            // try
+            // {
+            //     Task.WhenAll(tasks).Wait(ct);
+            //     for(var i = 0; i < 36 * 36; i++)
+            //     {
+            //         var (sound, bgainfo) = ((Sound sound, (int id, string path) bgainfo))tasks[i].Result;
+            //         
+            //         wavSounds[i] = sound; // To prevent concurrent modification, we should wait for all tasks to complete before assigning wavSounds.
+            //         wavSounds[i].setLoopCount(0);
+            //         if (bgainfo.id != -1)
+            //         {
+            //             bgas.Add(bgainfo); // Same as above.
+            //         }
+            //     }
+            // }
+            // catch (OperationCanceledException)
+            // {
+            //     Logger.Log("LoadGameTask is canceled");
+            //     return;
+            // }
 
             var ms = blockSize * 1000.0f / frequency;
 
-            Debug.Log($"Mixer blockSize        = {ms} ms");
-            Debug.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
-            Debug.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
+            Logger.Log($"Mixer blockSize        = {ms} ms");
+            Logger.Log($"Mixer Total bufferSize = {ms * numBlocks} ms");
+            Logger.Log($"Mixer Average Latency  = {ms * (numBlocks - 1.5f)} ms");
         }, ct);
         try
         {
@@ -625,8 +695,8 @@ public class RhythmControl : MonoBehaviour
             bmsRenderer.Init(parser.GetChart());
             gameState = new(parser.GetChart(), addReadyMeasure);
             
-            Debug.Log("Load Complete");
-            Debug.Log($"PlayLength: {parser.GetChart().ChartMeta.PlayLength}, TotalLength: {parser.GetChart().ChartMeta.TotalLength}");
+            Logger.Log("Load Complete");
+            Logger.Log($"PlayLength: {parser.GetChart().ChartMeta.PlayLength}, TotalLength: {parser.GetChart().ChartMeta.TotalLength}");
             if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
             {
                 bgaPlayer.OnAllPlayersLoaded += (sender, args) =>
@@ -642,7 +712,7 @@ public class RhythmControl : MonoBehaviour
             }
         } catch (OperationCanceledException)
         {
-            Debug.Log("Load game canceled");
+            Logger.Log("Load game canceled");
         }
     }
 
@@ -706,7 +776,7 @@ public class RhythmControl : MonoBehaviour
 #if UNITY_EDITOR
     private void OnPauseStateChanged(PauseState state)
     {
-        Debug.Log($"OnApplicationPause: {state}");
+        Logger.Log($"OnApplicationPause: {state}");
         lastPauseState = state;
         if (state == PauseState.Paused)
         {

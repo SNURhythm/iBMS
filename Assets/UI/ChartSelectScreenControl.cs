@@ -19,6 +19,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
+using Thread = System.Threading.Thread;
 
 public class ChartSelectScreenControl : MonoBehaviour
 {
@@ -43,7 +44,7 @@ public class ChartSelectScreenControl : MonoBehaviour
     private ChartMeta selectedChartMeta;
 
 
-
+public GameManager gm = GameManager.Instance;
 
     Sound previewSound;
     string previewSoundPath;
@@ -52,38 +53,58 @@ public class ChartSelectScreenControl : MonoBehaviour
     // cancellation token for parsing
     private CancellationTokenSource parseCancellationTokenSource = new();
 
-    void FindNew(List<Diff> diffs, HashSet<string> prevPathSet, DirectoryInfo directory, CancellationToken token)
+    void FindNew(Dictionary<string, List<Diff>> diffs, HashSet<string> prevPathSet, DirectoryInfo directory, CancellationToken token)
     {
-        var fileInfo = directory.GetFiles("*.*", SearchOption.AllDirectories)
-            .Where(file => new[] { ".bms", ".bme", ".bml" }.Contains(file.Extension));
+        var dirInfo = directory.GetDirectories();
+        foreach (var dir in dirInfo)
+        {
+            if (token.IsCancellationRequested)
+            {
+                Logger.Log("Parsing cancelled");
+                return;
+            }
+            FindNew(diffs, prevPathSet, dir, token);
+        }
+
+        var fileInfo = directory.GetFiles();
         foreach (var file in fileInfo)
         {
             if (token.IsCancellationRequested)
             {
-                Debug.Log("Parsing cancelled");
+                Logger.Log("Parsing cancelled");
                 return;
+            }
+            // check extension
+            if (!new[] { ".bms", ".bme", ".bml" }.Contains(file.Extension))
+            {
+                continue;
             }
             if (!prevPathSet.Contains(file.FullName))
             {
-                diffs.Add(new Diff { path = file.FullName, type = DiffType.New});
+                if (!diffs.ContainsKey(directory.FullName))
+                {
+                    diffs.Add(directory.FullName, new List<Diff>());
+                }
+                diffs[directory.FullName].Add(new Diff { path = file.FullName, type = DiffType.New });
             }
         }
     }
 
-    void Awake()
-    {
-        FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out channelGroup);
-    }
-    void UpdateChartCountLabel(Label label, int total, int loadingLeft)
+
+    void UpdateChartCountLabel(Label label, int total, int loadingLeft, int errorCount)
     {
         var sb = new StringBuilder();
         sb.Append(total);
         sb.Append(" chart(s)");
         if (loadingLeft > 0)
         {
-            sb.Append(" (loading: ");
+            sb.Append(" loading: ");
             sb.Append(loadingLeft);
-            sb.Append(")");
+        }
+        if (errorCount > 0)
+        {
+            sb.Append(" error: ");
+            sb.Append(errorCount);
         }
 
         label.text = sb.ToString();
@@ -99,8 +120,9 @@ public class ChartSelectScreenControl : MonoBehaviour
     int initialTotal = 0;
     private Label chartCountLabel;
 
-    void OnEnable()
+    void Start()
     {
+        FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out channelGroup);
         Resources.UnloadUnusedAssets();
         System.GC.Collect();
         chartSelectScreen = GetComponent<UIDocument>().rootVisualElement;
@@ -118,7 +140,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         // sort by title
         Sort(chartMetas);
         initialTotal = chartMetas.Count;
-        UpdateChartCountLabel(chartCountLabel, initialTotal, 0);
+        UpdateChartCountLabel(chartCountLabel, initialTotal, 0, 0);
         var info = new DirectoryInfo(persistDataPath);
         var token = parseCancellationTokenSource.Token;
         var thisGameObject = gameObject;
@@ -131,53 +153,59 @@ public class ChartSelectScreenControl : MonoBehaviour
                 {
                     if (token.IsCancellationRequested)
                     {
-                        Debug.Log("Parsing cancelled");
+                        Logger.Log("Parsing cancelled");
                         break;
                     }
                     pathSet.Add(chart.BmsPath);
                 }
-                var diffs = new List<Diff>();
+                var diffs = new Dictionary<string, List<Diff>>();
                 FindNew(diffs, pathSet, info, token);
                 
-                // check deleted
-                newCount = diffs.Count;
+                newCount = diffs.Sum(diff => diff.Value.Count);
                 foreach (var path in pathSet)
                 {
                     if (token.IsCancellationRequested)
                     {
-                        Debug.Log("Parsing cancelled");
+                        Logger.Log("Parsing cancelled");
                         break;
                     }
                     if (!File.Exists(path))
                     {
-                        diffs.Add(new Diff { path = path, type = DiffType.Deleted });
+                        // diffs.Add(Path.GetDirectoryName(path), new Diff { path = path, type = DiffType.Deleted });
+                        if (!diffs.ContainsKey(Path.GetDirectoryName(path)))
+                        {
+                            diffs.Add(Path.GetDirectoryName(path), new List<Diff>());
+                        }
+                        diffs[Path.GetDirectoryName(path)].Add(new Diff { path = path, type = DiffType.Deleted });
                     }
+                    
                 }
                 var deletedCount = diffs.Count - newCount;
-                Debug.Log($"Found {newCount} new charts and {deletedCount} deleted charts");
+                Logger.Log($"Found {newCount} new charts and {deletedCount} deleted charts");
 
 
-                if (diffs.Count > 0)
+                if (diffs.Count == 0) return;
+                Logger.Log("Scanning...");
+
+                // var tx = connection.BeginTransaction();
+                try
                 {
-                    Debug.Log("Scanning...");
 
-
-                    // var tx = connection.BeginTransaction();
-                    try
-                    {
-                        var rangePartitioner = Partitioner.Create(0, diffs.Count, 1000);
-                        Parallel.ForEach(rangePartitioner,
-                            new ParallelOptions
-                                { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
-                            range =>
-                            {
-                                for (int i = range.Item1; i < range.Item2; i++)
+                    Parallel.ForEach(diffs,
+                        new ParallelOptions
+                            { MaxDegreeOfParallelism = 1, CancellationToken = token },
+                        diffList =>
+                        {
+                            Logger.Log("Current Processor Id: " + Thread.GetCurrentProcessorId());
+Logger.Log("base path: " + diffList.Key);
+                            
+                                //Logger.Log($"Parsing {diff.path}");
+                                
+                                foreach (var diff in diffList.Value)
                                 {
-                                    var diff = diffs[i];
-                                    //Debug.Log($"Parsing {diff.path}");
                                     if (token.IsCancellationRequested)
                                     {
-                                        //Debug.Log("Parsing cancelled");
+                                        //Logger.Log("Parsing cancelled");
                                         return;
                                     }
 
@@ -195,11 +223,12 @@ public class ChartSelectScreenControl : MonoBehaviour
                                             stopWatch.Start();
                                             parser.Parse(diff.path, metaOnly: true, cancellationToken: token);
                                             stopWatch.Stop();
-                                            // Debug.Log($"Parsed {diff.path} in {stopWatch.ElapsedMilliseconds} ms");
+                                            // Logger.Log($"Parsed {diff.path} in {stopWatch.ElapsedMilliseconds} ms");
                                         }
                                         catch (Exception e)
                                         {
-                                            Debug.LogWarning("Error while parsing " + diff.path + ": " + e + e.StackTrace);
+                                            Logger.LogWarning("Error while parsing " + diff.path + ": " + e +
+                                                              e.StackTrace);
                                             Interlocked.Increment(ref errorCount);
                                             return;
                                         }
@@ -210,38 +239,38 @@ public class ChartSelectScreenControl : MonoBehaviour
 
 
                                         // insert to db
+                                        var stopWatch2 = new Stopwatch();
                                         ChartDBHelper.Instance.Insert(connection, chartMeta);
+                                        stopWatch2.Stop();
+                                        // Logger.Log($"Inserted {diff.path} in {stopWatch2.ElapsedMilliseconds} ms");
                                     }
                                 }
-                                
-                            });
-                    } catch (OperationCanceledException)
-                    {
-                        Debug.Log("Parsing cancelled");
-                    }
-
-                    // tx.Commit();
-
-                    Debug.Log("Scan complete, " + errorCount + " errors");
+                        });
+                } catch (OperationCanceledException)
+                {
+                    Logger.Log("Parsing cancelled");
                 }
+
+                // tx.Commit();
+
+                Logger.Log("Scan complete, " + errorCount + " errors");
 
 
             }
             catch (Exception e)
             {
-                Debug.LogError(e);
+                Logger.LogError(e);
             }
 
         }, token);
         parseTask.ContinueWith(t =>
         {
-            Debug.Log("Loading complete");
+            Logger.Log("Loading complete");
             if (!thisGameObject.IsDestroyed())
             {
                 UnityMainThreadDispatcher.Instance().Enqueue(() =>
                 {
                     var all = ChartDBHelper.Instance.SelectAll(connection);
-                    UpdateChartCountLabel(chartCountLabel, all.Count, 0);
                     // update list if search text is empty
                     if (searchBox.value != "") return;
                     Sort(all);
@@ -335,12 +364,12 @@ public class ChartSelectScreenControl : MonoBehaviour
                     chartSelectScreen.Q<Image>("JacketImage").image = null;
                 }
 
-                Debug.Log(data.BmsPath);
+                Logger.Log(data.BmsPath);
             };
             return chartItemElement;
         };
 
-        chartListView.bindItem = async (element, i) =>
+        chartListView.bindItem = (element, i) =>
         {
 
             var parseError = false;
@@ -440,7 +469,7 @@ public class ChartSelectScreenControl : MonoBehaviour
 
             if (selectedChartMeta == null)
             {
-                Debug.Log("No chart selected");
+                Logger.Log("No chart selected");
                 return;
             }
 
@@ -457,7 +486,7 @@ public class ChartSelectScreenControl : MonoBehaviour
         var asyncOperation = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync("PlayScene");
         while (!asyncOperation.isDone)
         {
-            Debug.Log(asyncOperation.progress);
+            Logger.Log(asyncOperation.progress);
             yield return null;
         }
 
@@ -498,31 +527,23 @@ public class ChartSelectScreenControl : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.Log(e);
+            Logger.Log(e);
             return null;
         }
     }
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        SceneManager.sceneUnloaded += (scene) =>
-        {
 
-
-        };
-    }
 
     // Update is called once per frame
     void Update()
     {
         UpdateChartCountLabel(chartCountLabel, loadedCount + initialTotal,
-            newCount - loadedCount);
+            newCount - loadedCount - errorCount, errorCount);
     }
 
     private void OnDestroy()
     {
-        Debug.Log("OnDestroy");
+        Logger.Log("OnDestroy");
         parseCancellationTokenSource.Cancel();
 
         channelGroup.stop();

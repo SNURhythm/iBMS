@@ -17,7 +17,7 @@ using UtfUnknown;
 // ReSharper disable once InconsistentNaming
 public class BMSParser
 {
-    private const int TempKey = 8;
+    private const int TempKey = 16;
     public const int NoWav = -1;
     public const int MetronomeWav = -2;
 
@@ -62,7 +62,7 @@ public class BMSParser
         stopwatch.Start();
         var bytes = File.ReadAllBytes(path);
         stopwatch.Stop();
-        //Debug.Log($"Read file: {stopwatch.ElapsedMilliseconds}ms");
+        //Logger.Log($"Read file: {stopwatch.ElapsedMilliseconds}ms");
         var result = CharsetDetector.DetectFromBytes(bytes);
         var encoding = Encoding.GetEncoding(932); // 932: Shift-JIS
         if (result?.Detected?.Encoding != null)
@@ -87,16 +87,13 @@ public class BMSParser
         // read bytes line by line
         stopwatch.Reset();
         stopwatch.Start();
-        using (var br = new StreamReader(GameManager.Instance.GetMemoryStream(bytes), encoding))
+        using (var ms = GameManager.Instance.GetMemoryStream(bytes))
+        using (var br = new StreamReader(ms, encoding))
         {
             string line;
             while ((line=br.ReadLine()) != null)
             {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
-
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!line.StartsWith("#")) continue;
 
                 if (char.IsDigit(line[1]) && char.IsDigit(line[2]) && char.IsDigit(line[3]) && char.IsDigit(line[4]) && char.IsDigit(line[5]) && line[6] == ':')
@@ -161,14 +158,11 @@ public class BMSParser
             }
         }
         
-        LinkedList<(int channel, string data)>[] measures = new LinkedList<(int channel, string data)>[lastMeasure + 1];
+        List<(int channel, string data)>[] measures = new List<(int channel, string data)>[lastMeasure + 1];
 
         foreach (var line in mainDatas)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
+            cancellationToken.ThrowIfCancellationRequested();
             var measure = int.Parse(line.Substring(1, 3))
                           + (addReadyMeasure ? 1 : 0);
 
@@ -176,25 +170,25 @@ public class BMSParser
             var value = line.Substring(7);
             if (measures[measure] == null)
             {
-                var list = new LinkedList<(int channel, string data)>();
-                list.AddLast((channel, value));
+                var list = new List<(int channel, string data)>();
+                list.Add((channel, value));
                 measures[measure] = list;
             }
             else
             {
 
-                measures[measure].AddLast((channel, value));
+                measures[measure].Add((channel, value));
             }
         }
         stopwatch.Stop();
-        //Debug.Log($"Parsing took {stopwatch.ElapsedMilliseconds}ms");
+        Logger.Log($"Parsing took {stopwatch.Elapsed.TotalMilliseconds}ms");
         
-        // Debug.Log($"Parsing took {stopwatch.ElapsedMilliseconds}ms");
+        // Logger.Log($"Parsing took {stopwatch.ElapsedMilliseconds}ms");
 
         if (addReadyMeasure)
         {
-            measures[0] = new LinkedList<(int channel, string data)>();
-            measures[0].AddLast((Channel.LaneAutoplay, "********"));
+            measures[0] = new List<(int channel, string data)>();
+            measures[0].Add((Channel.LaneAutoplay, "********"));
         }
 
 
@@ -203,27 +197,29 @@ public class BMSParser
         var currentBpm = chart.ChartMeta.Bpm;
         var lastNote = new Note[TempKey];
         var lnStart = new LongNote[TempKey];
-
+        
         for (var i = 0; i <= lastMeasure; ++i)
         {
-            if(cancellationToken.IsCancellationRequested) return;
+            cancellationToken.ThrowIfCancellationRequested();
             if (measures[i] == null)
             {
-                measures[i] = new LinkedList<(int channel, string data)>();
+                measures[i] = new List<(int channel, string data)>();
             }
 
             // gcd (int, int)
             Measure measure = new();
             SortedDictionary<double, TimeLine> timelines = new();
-
-            foreach (var (channel, data) in measures[i])
+            var measureRaw = measures[i];
+            for (var m = 0; m < measureRaw.Count; m++)
             {
-                if(cancellationToken.IsCancellationRequested) return;
+                
+                var (channel, data) = measureRaw[m];
+                cancellationToken.ThrowIfCancellationRequested();
                 var _channel = channel;
                 if (channel == Channel.SectionRate)
                 {
                     measure.Scale = double.Parse(data);
-                    // Debug.Log($"measure.scale: {measure.scale}, on measure {i}");
+                    // Logger.Log($"measure.scale: {measure.scale}, on measure {i}");
                     continue;
                 }
 
@@ -268,6 +264,10 @@ public class BMSParser
                     laneNumber = KeyAssign.Beat7[channel - Channel.P2MineKeyBase + 9];
                     _channel = Channel.P1MineKeyBase;
                 }
+                if (_channel is Channel.LaneAutoplay or Channel.P1InvisibleKeyBase)
+                {
+                    if(metaOnly) continue;
+                }
 
                 if (laneNumber == -1) continue;
                 if (laneNumber is 5 or 6 or 13 or 14)
@@ -275,9 +275,12 @@ public class BMSParser
                     chart.ChartMeta.KeyMode = 7;
                 }
                 var dataCount = data.Length / 2;
+               
                 for (var j = 0; j < dataCount; ++j)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var val = data.Substring(j * 2, 2);
+                    
                     if (val == "00")
                     {
                         if (timelines.Count == 0 && j == 0)
@@ -295,10 +298,7 @@ public class BMSParser
                     if (!timelines.ContainsKey(position)) timelines.Add(position, new TimeLine(TempKey));
 
                     var timeline = timelines[position];
-                    if (_channel is Channel.LaneAutoplay or Channel.P1InvisibleKeyBase)
-                    {
-                        if(metaOnly) break;
-                    }
+
                     switch (_channel)
                     {
                         case Channel.LaneAutoplay:
@@ -316,7 +316,7 @@ public class BMSParser
                             break;
                         case Channel.BpmChange:
                             timeline.Bpm = Convert.ToInt32(val, 16);
-                            // Debug.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
+                            // Logger.Log($"BPM_CHANGE: {timeline.Bpm}, on measure {i}");
                             timeline.BpmChange = true;
 
 
@@ -333,14 +333,14 @@ public class BMSParser
                         case Channel.BpmChangeExtend:
 
                             timeline.Bpm = bpmTable[DecodeBase36(val)];
-                            // Debug.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}, {val}");
+                            // Logger.Log($"BPM_CHANGE_EXTEND: {timeline.Bpm}, on measure {i}, {val}");
                             timeline.BpmChange = true;
 
 
                             break;
                         case Channel.Stop:
                             timeline.StopLength = StopLengthTable[DecodeBase36(val)];
-                            // Debug.Log($"STOP: {timeline.StopLength}, on measure {i}");
+                            // Logger.Log($"STOP: {timeline.StopLength}, on measure {i}");
                             break;
                         case Channel.P1KeyBase:
                             var ch = DecodeBase36(val);
@@ -421,6 +421,7 @@ public class BMSParser
                     }
                 }
             }
+            
             chart.TotalNotes = totalNotes;
 
 
@@ -433,7 +434,7 @@ public class BMSParser
             {
                 if(cancellationToken.IsCancellationRequested) return;
 
-                // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
+                // Logger.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
                 double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
                 timePassed += interval;
                 timeline.Timing = (long)timePassed;
@@ -445,7 +446,7 @@ public class BMSParser
                 }
                 else timeline.Bpm = currentBpm;
 
-                // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition}, bpm: {currentBpm} scale: {measure.Scale} interval: {interval} stop: {timeline.GetStopDuration()}");
+                // Logger.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition}, bpm: {currentBpm} scale: {measure.Scale} interval: {interval} stop: {timeline.GetStopDuration()}");
 
                 if(!metaOnly) measure.Timelines.Add(timeline);
                 timePassed += timeline.GetStopDuration();
@@ -472,7 +473,7 @@ public class BMSParser
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
 
         }
-        // Debug.Log($"Postprocessing took: "+ stopwatch.ElapsedMilliseconds + "ms");
+        // Logger.Log($"Postprocessing took: "+ stopwatch.ElapsedMilliseconds + "ms");
         
         
 
@@ -562,7 +563,7 @@ public class BMSParser
 
     private void ParseHeader(string cmd, string xx, string value)
     {
-        // Debug.Log($"cmd: {cmd}, xx: {xx} isXXNull: {xx == null}, value: {value}");
+        // Logger.Log($"cmd: {cmd}, xx: {xx} isXXNull: {xx == null}, value: {value}");
         switch (cmd.ToUpper())
         {
             case "PLAYER":
@@ -593,7 +594,7 @@ public class BMSParser
                     chart.ChartMeta.Bpm = double.Parse(value);
                 else
                 {
-                    // Debug.Log($"BPM: {DecodeBase36(xx)} = {double.Parse(value)}");
+                    // Logger.Log($"BPM: {DecodeBase36(xx)} = {double.Parse(value)}");
                     bpmTable[DecodeBase36(xx)] = double.Parse(value);
 
                 }
@@ -614,7 +615,7 @@ public class BMSParser
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning($"invalid playlevel: {value}");
+                    Logger.LogWarning($"invalid playlevel: {value}");
                 }
 
                 break;
@@ -640,7 +641,7 @@ public class BMSParser
             case "WAV":
                 if (xx == null || value == null)
                 {
-                    Debug.LogWarning("WAV command requires two arguments");
+                    Logger.LogWarning("WAV command requires two arguments");
                     break;
                 }
 
@@ -649,7 +650,7 @@ public class BMSParser
             case "BMP":
                 if (xx == null || value == null)
                 {
-                    Debug.LogWarning("WAV command requires two arguments");
+                    Logger.LogWarning("WAV command requires two arguments");
                     break;
                 }
 
@@ -675,7 +676,7 @@ public class BMSParser
             // case "ExtChr":
             // break;
             default:
-                Debug.LogWarning("Unknown command: " + cmd);
+                Logger.LogWarning("Unknown command: " + cmd);
                 break;
         }
     }

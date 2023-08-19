@@ -44,13 +44,13 @@ public class BGAPlayer
         var ext = path.Substring(path.LastIndexOf('.') + 1);
         if (Array.IndexOf(extensions, ext) == -1)
         {
-            Debug.Log("Unsupported BGA file extension: " + ext);
+            Logger.Log("Unsupported BGA file extension: " + ext);
             return;
         }
         var player = Camera.main.gameObject.AddComponent<VideoPlayer>();
 
-        Debug.Log("Loading BGA player " + id + " from " + path);
-        Debug.Log(player);
+        Logger.Log("Loading BGA player " + id + " from " + path);
+        Logger.Log(player);
         try
         {
             player.playOnAwake = false;
@@ -67,7 +67,7 @@ public class BGAPlayer
             player.errorReceived += (source, message) =>
             {
                 player.Stop();
-                Debug.Log("BGA player " + id + " error: " + message);
+                Logger.Log("BGA player " + id + " error: " + message);
                 players.Remove(id);
                 OnPrepareCompleted(player);
             };
@@ -76,8 +76,8 @@ public class BGAPlayer
             TotalPlayers++;
         } catch (Exception e)
         {
-            Debug.Log("Failed to load BGA player " + id + " from " + path);
-            Debug.Log(e);
+            Logger.Log("Failed to load BGA player " + id + " from " + path);
+            Logger.Log(e);
             OnPrepareCompleted(player);
         }
     }
@@ -93,7 +93,7 @@ public class BGAPlayer
                 player.skipOnDrop = true;
             }
 
-            Debug.Log("All BGA players are prepared");
+            Logger.Log("All BGA players are prepared");
             OnAllPlayersLoaded?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -105,7 +105,7 @@ public class BGAPlayer
             foreach (var id in ids)
             {
                 if (!players.ContainsKey(id)) continue;
-                // Debug.Log("updating " + id + " at " + timeMicro);
+                // Logger.Log("updating " + id + " at " + timeMicro);
                 if (timeMicro >= time)
                 {
                     players[id].skipOnDrop = true;
@@ -146,7 +146,7 @@ public class BGAPlayer
     public void Schedule(int id, long time)
     {
         if(!players.ContainsKey(id)) return;
-        Debug.Log("Scheduling " + id + " at " + time);
+        Logger.Log("Scheduling " + id + " at " + time);
         if (!state.Schedules.ContainsKey(time))
             state.Schedules.Add(time, new List<int>());
         

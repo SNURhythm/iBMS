@@ -127,7 +127,7 @@ public class BMSRenderer : MonoBehaviour
         laneBeamSr.sortingLayerName = "LaneBeam";
         laneBeamSr.drawMode = SpriteDrawMode.Sliced;
         laneBeamSr.size = new Vector2(laneWidth, NoteArea.transform.localScale.y);
-        Debug.Log("keys: " + GameManager.Instance.KeyMode);
+        Logger.Log("keys: " + GameManager.Instance.KeyMode);
         keyBombs = new GameObject[8];
         laneBeamEffects = new LaneBeamEffect[8];
         for (int i = 0; i < 8; i++)
@@ -217,7 +217,7 @@ public class BMSRenderer : MonoBehaviour
         double currentPos = (currentTime < lastTimeline.Timing + lastTimeline.GetStopDuration()) ? lastTimeline.Pos
                               : lastTimeline.Pos + (currentTime - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.ChartMeta.Bpm;
 
-        // Debug.Log($"lastTimeline.Timing: {lastTimeline.Timing}, lastTimtline.Pos: {lastTimeline.Pos}, currentTime: {currentTime}, currentPos: {currentPos}");
+        // Logger.Log($"lastTimeline.Timing: {lastTimeline.Timing}, lastTimtline.Pos: {lastTimeline.Pos}, currentTime: {currentTime}, currentPos: {currentPos}");
 
         for (int i = state.passedMeasureCount; i < measures.Count; i++)
         {
@@ -237,7 +237,7 @@ public class BMSRenderer : MonoBehaviour
                 if (shouldDestroyTimeline && isFirstMeasure)
                 {
                     state.passedTimelineCount++;
-                    // Debug.Log($"Destroying timeline, passedTimelineCount: {passedTimelineCount}, total timeline count: {measure.Timelines.Count}");
+                    // Logger.Log($"Destroying timeline, passedTimelineCount: {passedTimelineCount}, total timeline count: {measure.Timelines.Count}");
                 }
 
                 foreach (var note in timeline.Notes)
@@ -301,7 +301,7 @@ public class BMSRenderer : MonoBehaviour
                 state.passedTimelineCount = 0;
                 state.passedMeasureCount++;
                 DestroyMeasureLine(measure);
-                // Debug.Log($"Skipping measure since all {measure.Timelines.Count} timelines are passed, passedMeasureCount: {passedMeasureCount}");
+                // Logger.Log($"Skipping measure since all {measure.Timelines.Count} timelines are passed, passedMeasureCount: {passedMeasureCount}");
             }
         }
 
