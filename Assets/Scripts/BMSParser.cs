@@ -74,10 +74,10 @@ public class BMSParser
         var sha256 = SHA256.Create();
         var sha256Hash = sha256.ComputeHash(bytes);
         var sha256Hex = BitConverter.ToString(sha256Hash).Replace("-", "").ToLowerInvariant();
-        chart.ChartMeta.MD5 = md5Hex;
-        chart.ChartMeta.SHA256 = sha256Hex;
-        chart.ChartMeta.BmsPath = path;
-        chart.ChartMeta.Folder = Path.GetDirectoryName(path);
+        chart.Meta.MD5 = md5Hex;
+        chart.Meta.SHA256 = sha256Hex;
+        chart.Meta.BmsPath = path;
+        chart.Meta.Folder = Path.GetDirectoryName(path);
         int lastMeasure = -1;
         // read bytes line by line
         var stopwatch = new System.Diagnostics.Stopwatch();
@@ -170,7 +170,12 @@ public class BMSParser
 
         double timePassed = 0;
         int totalNotes = 0;
-        var currentBpm = chart.ChartMeta.Bpm;
+        int totalLongNotes = 0;
+        int totalScratchNotes = 0;
+        int totalBackSpinNotes = 0;
+        var currentBpm = chart.Meta.Bpm;
+        var minBpm = chart.Meta.Bpm;
+        var maxBpm = chart.Meta.Bpm;
         var lastNote = new Note[TempKey];
         var lnStart = new LongNote[TempKey];
         stopwatch.Start();
@@ -240,9 +245,10 @@ public class BMSParser
                 }
 
                 if (laneNumber == -1) continue;
+                bool isScratch = laneNumber is 7 or 15;
                 if (laneNumber is 5 or 6 or 13 or 14)
                 {
-                    chart.ChartMeta.KeyMode = 7;
+                    chart.Meta.KeyMode = 7;
                 }
                 var dataCount = data.Length / 2;
                 for (var j = 0; j < dataCount; ++j)
@@ -316,10 +322,18 @@ public class BMSParser
                             var ch = DecodeBase36(val);
                             if (ch == lnobj)
                             {
-                                // TODO: should increase totalNotes if LNMODE is CN or HCN
-                                if(metaOnly) break;
                                 if (lastNote[laneNumber] != null)
                                 {
+                                    if (isScratch)
+                                    {
+                                        ++totalBackSpinNotes;
+                                    }
+                                    else
+                                    {
+                                        ++totalLongNotes;
+                                    }
+
+                                    if(metaOnly) break;
                                     var lastTimeline = lastNote[laneNumber].Timeline;
                                     var ln = new LongNote(lastNote[laneNumber].Wav);
 
@@ -338,6 +352,7 @@ public class BMSParser
                             else
                             {
                                 ++totalNotes;
+                                if(isScratch) ++totalScratchNotes;
                                 if(metaOnly) break;
                                 var note = new Note(ToWaveId(val));
                                 timeline.SetNote(laneNumber, note);
@@ -356,6 +371,15 @@ public class BMSParser
                                 if (lnStart[laneNumber] == null)
                                 {
                                     ++totalNotes;
+                                    if (isScratch)
+                                    {
+                                        ++totalBackSpinNotes;
+                                    }
+                                    else
+                                    {
+                                        ++totalLongNotes;
+                                    }
+
                                     var ln = new LongNote(ToWaveId(val));
                                     lnStart[laneNumber] = ln;
                                     
@@ -368,9 +392,6 @@ public class BMSParser
                                 }
                                 else
                                 {
-                                    // TODO: should increase totalNotes if LNMODE is CN or HCN
-                                    
-                                    
                                     var tail = new LongNote(NoWav)
                                     {
                                         Head = lnStart[laneNumber]
@@ -391,12 +412,14 @@ public class BMSParser
                     }
                 }
             }
-            chart.TotalNotes = totalNotes;
+            chart.Meta.TotalNotes = totalNotes;
+            chart.Meta.TotalLongNotes = totalLongNotes;
+            chart.Meta.TotalScratchNotes = totalScratchNotes;
+            chart.Meta.TotalBackSpinNotes = totalBackSpinNotes;
 
 
             var lastPosition = 0.0;
-            var minBpm = chart.ChartMeta.Bpm;
-            var maxBpm = chart.ChartMeta.Bpm;
+
             measure.Timing = (long)timePassed;
             if(!metaOnly) chart.Measures.Add(measure);
             foreach (var (position, timeline) in timelines)
@@ -420,7 +443,7 @@ public class BMSParser
                 if(!metaOnly) measure.Timelines.Add(timeline);
                 timePassed += timeline.GetStopDuration();
                 
-                if (timeline.Notes.Count > 0) chart.ChartMeta.PlayLength = (long)timePassed;
+                if (timeline.Notes.Count > 0) chart.Meta.PlayLength = (long)timePassed;
 
                 lastPosition = position;
             }
@@ -434,17 +457,13 @@ public class BMSParser
                 };
                 measure.Timelines.Add(timeline);
             }
-
-            chart.ChartMeta.TotalLength = (long)timePassed;
-            chart.ChartMeta.MinBpm = minBpm;
-            chart.ChartMeta.MaxBpm = maxBpm;
-
             timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
 
         }
         // Debug.Log($"Postprocessing took: "+ stopwatch.ElapsedMilliseconds + "ms");
-        
-        
+        chart.Meta.TotalLength = (long)timePassed;
+        chart.Meta.MinBpm = minBpm;
+        chart.Meta.MaxBpm = maxBpm;
 
     }
     
@@ -536,31 +555,31 @@ public class BMSParser
         switch (cmd.ToUpper())
         {
             case "PLAYER":
-                chart.ChartMeta.Player = int.Parse(value);
+                chart.Meta.Player = int.Parse(value);
                 break;
             case "GENRE":
-                chart.ChartMeta.Genre = value;
+                chart.Meta.Genre = value;
                 break;
             case "TITLE":
-                chart.ChartMeta.Title = value;
+                chart.Meta.Title = value;
                 break;
             case "SUBTITLE":
-                chart.ChartMeta.SubTitle = value;
+                chart.Meta.SubTitle = value;
                 break;
             case "ARTIST":
-                chart.ChartMeta.Artist = value;
+                chart.Meta.Artist = value;
                 break;
             case "SUBARTIST":
-                chart.ChartMeta.SubArtist = value;
+                chart.Meta.SubArtist = value;
                 break;
             case "DIFFICULTY":
-                chart.ChartMeta.Difficulty = int.Parse(value);
+                chart.Meta.Difficulty = int.Parse(value);
                 break;
             case "BPM":
                 if (value == null) throw new Exception("invalid BPM value");
                 if (string.IsNullOrEmpty(xx))
                     // chart initial bpm
-                    chart.ChartMeta.Bpm = double.Parse(value);
+                    chart.Meta.Bpm = double.Parse(value);
                 else
                 {
                     // Debug.Log($"BPM: {DecodeBase36(xx)} = {double.Parse(value)}");
@@ -580,7 +599,7 @@ public class BMSParser
             case "PLAYLEVEL":
                 try
                 {
-                    chart.ChartMeta.PlayLevel = double.Parse(value);
+                    chart.Meta.PlayLevel = double.Parse(value);
                 }
                 catch (Exception e)
                 {
@@ -589,23 +608,27 @@ public class BMSParser
 
                 break;
             case "RANK":
-                chart.ChartMeta.Rank = int.Parse(value);
+                chart.Meta.Rank = int.Parse(value);
                 break;
             case "TOTAL":
+                double.TryParse(value, out var total);
+                if(total > 0)
+                    chart.Meta.Total = total;
+                
                 break;
             case "VOLWAV":
                 break;
             case "STAGEFILE":
-                chart.ChartMeta.StageFile = value;
+                chart.Meta.StageFile = value;
                 break;
             case "BANNER":
-                chart.ChartMeta.Banner = value;
+                chart.Meta.Banner = value;
                 break;
             case "BACKBMP":
-                chart.ChartMeta.BackBmp = value;
+                chart.Meta.BackBmp = value;
                 break;
             case "PREVIEW":
-                chart.ChartMeta.Preview = value;
+                chart.Meta.Preview = value;
                 break;
             case "WAV":
                 if (xx == null || value == null)
@@ -626,7 +649,7 @@ public class BMSParser
                 bmpTable[DecodeBase36(xx)] = value;
                 if (xx == "00")
                 {
-                    chart.ChartMeta.BgaPoorDefault = true;
+                    chart.Meta.BgaPoorDefault = true;
                 }
                 break;
             case "RANDOM":
@@ -640,6 +663,9 @@ public class BMSParser
                 break;
             case "LNTYPE":
                 lntype = int.Parse(value);
+                break;
+            case "LNMODE":
+                chart.Meta.LnMode = int.TryParse(value, out var lnmode) ? lnmode : 0;
                 break;
 
             // case "ExtChr":

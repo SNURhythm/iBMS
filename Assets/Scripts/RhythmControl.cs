@@ -37,7 +37,7 @@ class GameState
     private long firstTiming = 0;
     public GameState(Chart chart, bool addReadyMeasure)
     {
-        Judge = new Judge(chart.ChartMeta.Rank);
+        Judge = new Judge(chart.Meta.Rank);
         // if(addReadyMeasure)
         //     if(chart.Measures.Count > 1)
         //         firstTiming = chart.Measures[1].Timelines[0].Timing;
@@ -145,7 +145,7 @@ public class RhythmControl : MonoBehaviour
         var time = Math.Max(currentDspTime, gameState.MaxCompensatedDspTime);
         bmsRenderer.Draw(time);
 
-        if (time >= parser.GetChart().ChartMeta.PlayLength + TimeMargin)
+        if (time >= parser.GetChart().Meta.PlayLength + TimeMargin)
         {
             gameState.IsPlaying = false;
             UnloadGame();
@@ -626,7 +626,7 @@ public class RhythmControl : MonoBehaviour
             gameState = new(parser.GetChart(), addReadyMeasure);
             
             Debug.Log("Load Complete");
-            Debug.Log($"PlayLength: {parser.GetChart().ChartMeta.PlayLength}, TotalLength: {parser.GetChart().ChartMeta.TotalLength}");
+            Debug.Log($"PlayLength: {parser.GetChart().Meta.PlayLength}, TotalLength: {parser.GetChart().Meta.TotalLength}");
             if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
             {
                 bgaPlayer.OnAllPlayersLoaded += (sender, args) =>
@@ -842,7 +842,7 @@ public class RhythmControl : MonoBehaviour
             var sb = new StringBuilder();
             sb.Append(gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000);
             sb.Append('/');
-            sb.Append((parser.GetChart().ChartMeta.TotalLength + TimeMargin) / 1000000);
+            sb.Append((parser.GetChart().Meta.TotalLength + TimeMargin) / 1000000);
             
             GUILayout.Label(sb.ToString(), style);
 

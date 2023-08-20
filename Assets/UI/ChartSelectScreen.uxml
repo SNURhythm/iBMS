@@ -15,11 +15,21 @@
                     <ui:Label tabindex="-1" text="Title" display-tooltip-when-elided="true" name="ChartTitle" class="songtitle-text" />
                     <ui:Label tabindex="-1" text="Artist" display-tooltip-when-elided="true" name="ChartArtist" class="composer-text" />
                     <ui:VisualElement name="ChartPropertyList" style="flex-grow: 0; background-color: rgba(128, 128, 128, 0.08); border-top-left-radius: 12px; border-bottom-left-radius: 12px; border-top-right-radius: 12px; border-bottom-right-radius: 12px; padding-left: 16px; padding-right: 16px; padding-top: 16px; padding-bottom: 16px; margin-top: 10px;">
-                        <ui:Instance template="ChartPropertyRow" name="ChartPropertyRow" />
-                        <ui:Instance template="ChartPropertyRow" name="ChartPropertyRow" />
-                        <ui:Instance template="ChartPropertyRow" name="ChartPropertyRow" />
-                        <ui:Instance template="ChartPropertyRow" name="ChartPropertyRow" />
-                        <ui:Instance template="ChartPropertyRow" name="ChartPropertyRow" />
+                        <ui:Instance template="ChartPropertyRow" name="GenreRow">
+                            <AttributeOverrides element-name="Key" text="Genre" />
+                        </ui:Instance>
+                        <ui:Instance template="ChartPropertyRow" name="BPMRow">
+                            <AttributeOverrides element-name="Key" text="BPM" />
+                        </ui:Instance>
+                        <ui:Instance template="ChartPropertyRow" name="TotalRow">
+                            <AttributeOverrides element-name="Key" text="Total" />
+                        </ui:Instance>
+                        <ui:Instance template="ChartPropertyRow" name="NotesRow">
+                            <AttributeOverrides element-name="Key" text="Notes" />
+                        </ui:Instance>
+                        <ui:Instance template="ChartPropertyRow" name="JudgementRow">
+                            <AttributeOverrides element-name="Key" text="Judgement" />
+                        </ui:Instance>
                         <ui:VisualElement style="flex-grow: 1; background-color: rgba(0, 0, 0, 0);">
                             <ui:Button text="View Details" display-tooltip-when-elided="true" name="Button" style="background-color: rgba(0, 0, 0, 0); border-left-color: rgba(0, 0, 0, 0); border-right-color: rgba(0, 0, 0, 0); border-top-color: rgba(0, 0, 0, 0); border-bottom-color: rgba(0, 0, 0, 0); color: rgb(202, 202, 202); font-size: 16px; margin-left: 0; margin-right: 0; margin-top: 0; margin-bottom: 0; padding-left: 0; padding-right: 0; padding-top: 0; padding-bottom: 0; -unity-text-align: middle-right;" />
                         </ui:VisualElement>

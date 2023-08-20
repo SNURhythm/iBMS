@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -197,7 +198,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                             }
                             loadedCount++;
 
-                            var chartMeta = parser.GetChart().ChartMeta;
+                            var chartMeta = parser.GetChart().Meta;
                             var count1 = loadedCount;
                             if (loadedCount % 10 == 0 || loadedCount <= 10)
                             {
@@ -329,6 +330,31 @@ public class ChartSelectScreenControl : MonoBehaviour
                 {
                     chartSelectScreen.Q<Image>("JacketImage").image = null;
                 }
+                
+                // GenreRow, BPMRow, TotalRow, ...
+                var genreRow = chartSelectScreen.Q<VisualElement>("GenreRow");
+                var bpmRow = chartSelectScreen.Q<VisualElement>("BPMRow");
+                var totalRow = chartSelectScreen.Q<VisualElement>("TotalRow");
+                var notesRow = chartSelectScreen.Q<VisualElement>("NotesRow");
+                var judgementRow = chartSelectScreen.Q<VisualElement>("JudgementRow");
+                
+                genreRow.Q<Label>("Value").text = data.Genre;
+                // min~max (mainbpm)
+                var bpmSb = new StringBuilder();
+                bpmSb.Append(data.MinBpm);
+                if (Math.Abs(data.MinBpm - data.MaxBpm) > 0.0001)
+                {
+                    bpmSb.Append("~");
+                    bpmSb.Append(data.MaxBpm);
+                    bpmSb.Append(" (");
+                    bpmSb.Append(data.Bpm);
+                    bpmSb.Append(")");
+                }
+                bpmRow.Q<Label>("Value").text = bpmSb.ToString();
+                totalRow.Q<Label>("Value").text = data.Total.ToString(CultureInfo.InvariantCulture);
+                notesRow.Q<Label>("Value").text = data.TotalNotes.ToString();
+                judgementRow.Q<Label>("Value").text = data.Rank.ToString();
+                
 
                 Debug.Log(data.BmsPath);
             };

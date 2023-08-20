@@ -42,12 +42,18 @@ public class ChartDBHelper
                         preview    TEXT,
                         level      REAL,
                         difficulty INTEGER,
+                        total     REAL,
+                        bpm       REAL,
                         max_bpm     REAL,
                         min_bpm     REAL,
                         length     INTEGER,
                         rank      INTEGER,
                         player    INTEGER,
-                        keys     INTEGER
+                        keys     INTEGER,
+                        total_notes INTEGER,
+                        total_long_notes INTEGER,
+                        total_scratch_notes INTEGER,
+                        total_backspin_notes INTEGER
                     )";
         var command = connection.CreateCommand();
         command.CommandText = q;
@@ -72,12 +78,18 @@ public class ChartDBHelper
                         preview,
                         level,
                         difficulty,
+                        total,
+                        bpm,
                         max_bpm,
                         min_bpm,
                         length,
                         rank,
                         player,
-                        keys
+                        keys,
+                        total_notes,
+                        total_long_notes,
+                        total_scratch_notes,
+                        total_backspin_notes
                     ) VALUES (
                         @path,
                         @md5,
@@ -94,12 +106,18 @@ public class ChartDBHelper
                         @preview,
                         @level,
                         @difficulty,
+                        @total,
+                        @bpm,
                         @max_bpm,
                         @min_bpm,
                         @length,
                         @rank,
                         @player,
-                        @keys
+                        @keys,
+                        @total_notes,
+                        @total_long_notes,
+                        @total_scratch_notes,
+                        @total_backspin_notes
                     )";
 
         var command = connection.CreateCommand();
@@ -119,12 +137,18 @@ public class ChartDBHelper
         command.Parameters.Add(new SqliteParameter("@preview", chartMeta.Preview));
         command.Parameters.Add(new SqliteParameter("@level", chartMeta.PlayLevel));
         command.Parameters.Add(new SqliteParameter("@difficulty", chartMeta.Difficulty));
+        command.Parameters.Add(new SqliteParameter("@total", chartMeta.Total));
+        command.Parameters.Add(new SqliteParameter("@bpm", chartMeta.Bpm));
         command.Parameters.Add(new SqliteParameter("@max_bpm", chartMeta.MaxBpm));
         command.Parameters.Add(new SqliteParameter("@min_bpm", chartMeta.MinBpm));
         command.Parameters.Add(new SqliteParameter("@length", chartMeta.PlayLength));
         command.Parameters.Add(new SqliteParameter("@rank", chartMeta.Rank));
         command.Parameters.Add(new SqliteParameter("@player", chartMeta.Player));
         command.Parameters.Add(new SqliteParameter("@keys", chartMeta.KeyMode));
+        command.Parameters.Add(new SqliteParameter("@total_notes", chartMeta.TotalNotes));
+        command.Parameters.Add(new SqliteParameter("@total_long_notes", chartMeta.TotalLongNotes));
+        command.Parameters.Add(new SqliteParameter("@total_scratch_notes", chartMeta.TotalScratchNotes));
+        command.Parameters.Add(new SqliteParameter("@total_backspin_notes", chartMeta.TotalBackSpinNotes));
 
         command.ExecuteNonQuery();
     }
@@ -147,12 +171,18 @@ public class ChartDBHelper
                         preview,
                         level,
                         difficulty,
+                        total,
+                        bpm,
                         max_bpm,
                         min_bpm,
                         length,
                         rank,
                         player,
-                        keys
+                        keys,
+                        total_notes,
+                        total_long_notes,
+                        total_scratch_notes,
+                        total_backspin_notes
                         FROM chart_meta";
         var command = connection.CreateCommand();
         command.CommandText = q;
@@ -178,28 +208,35 @@ public class ChartDBHelper
 
     private ChartMeta ReadChartMeta(IDataReader reader)
     {
+        var idx = 0;
         var chartMeta = new ChartMeta();
-        chartMeta.BmsPath = reader.GetString(0);
-        chartMeta.MD5 = reader.GetString(1);
-        chartMeta.SHA256 = reader.GetString(2);
-        chartMeta.Title = GetStringOrNull(reader, 3);
-        chartMeta.SubTitle = GetStringOrNull(reader, 4);
-        chartMeta.Genre = GetStringOrNull(reader, 5);
-        chartMeta.Artist = GetStringOrNull(reader, 6);
-        chartMeta.SubArtist = GetStringOrNull(reader, 7);
-        chartMeta.Folder = GetStringOrNull(reader, 8);
-        chartMeta.StageFile = GetStringOrNull(reader, 9);
-        chartMeta.Banner = GetStringOrNull(reader, 10);
-        chartMeta.BackBmp = GetStringOrNull(reader, 11);
-        chartMeta.Preview = GetStringOrNull(reader, 12);
-        chartMeta.PlayLevel = GetDoubleOrNull(reader, 13);
-        chartMeta.Difficulty = GetIntOrNull(reader, 14);
-        chartMeta.MaxBpm = GetDoubleOrNull(reader, 15);
-        chartMeta.MinBpm = GetDoubleOrNull(reader, 16);
-        chartMeta.PlayLength = GetLongOrNull(reader, 17);
-        chartMeta.Rank = GetIntOrNull(reader, 18);
-        chartMeta.Player = GetIntOrNull(reader, 19);
-        chartMeta.KeyMode = GetIntOrNull(reader, 20);
+        chartMeta.BmsPath = reader.GetString(idx++);
+        chartMeta.MD5 = reader.GetString(idx++);
+        chartMeta.SHA256 = reader.GetString(idx++);
+        chartMeta.Title = GetStringOrNull(reader, idx++);
+        chartMeta.SubTitle = GetStringOrNull(reader, idx++);
+        chartMeta.Genre = GetStringOrNull(reader, idx++);
+        chartMeta.Artist = GetStringOrNull(reader, idx++);
+        chartMeta.SubArtist = GetStringOrNull(reader, idx++);
+        chartMeta.Folder = GetStringOrNull(reader, idx++);
+        chartMeta.StageFile = GetStringOrNull(reader, idx++);
+        chartMeta.Banner = GetStringOrNull(reader, idx++);
+        chartMeta.BackBmp = GetStringOrNull(reader, idx++);
+        chartMeta.Preview = GetStringOrNull(reader, idx++);
+        chartMeta.PlayLevel = GetDoubleOrNull(reader, idx++);
+        chartMeta.Difficulty = GetIntOrNull(reader, idx++);
+        chartMeta.Total = GetDoubleOrNull(reader, idx++);
+        chartMeta.Bpm = GetDoubleOrNull(reader, idx++);
+        chartMeta.MaxBpm = GetDoubleOrNull(reader, idx++);
+        chartMeta.MinBpm = GetDoubleOrNull(reader, idx++);
+        chartMeta.PlayLength = GetLongOrNull(reader, idx++);
+        chartMeta.Rank = GetIntOrNull(reader, idx++);
+        chartMeta.Player = GetIntOrNull(reader, idx++);
+        chartMeta.KeyMode = GetIntOrNull(reader, idx++);
+        chartMeta.TotalNotes = GetIntOrNull(reader, idx++);
+        chartMeta.TotalLongNotes = GetIntOrNull(reader, idx++);
+        chartMeta.TotalScratchNotes = GetIntOrNull(reader, idx++);
+        chartMeta.TotalBackSpinNotes = GetIntOrNull(reader, idx++);
         return chartMeta;
     }
 
@@ -220,12 +257,18 @@ public class ChartDBHelper
                         preview,
                         level,
                         difficulty,
+                        total,
+                        bpm,
                         max_bpm,
                         min_bpm,
                         length,
                         rank,
                         player,
-                        keys
+                        keys,
+                        total_notes,
+                        total_long_notes,
+                        total_scratch_notes,
+                        total_backspin_notes
                         FROM chart_meta WHERE rtrim(title||' '||subtitle||' '||artist||' '||sub_artist||' '||genre) LIKE @text GROUP BY sha256";
         var command = connection.CreateCommand();
         command.CommandText = q;
