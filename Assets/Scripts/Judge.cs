@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
 [SuppressMessage("ReSharper", "IdentifierTypo")]
@@ -72,7 +73,8 @@ public class Judge
 
     public Judge(int rank)
     {
-        judgeWindowTable = judgeWindowTableByRank[rank];
+        var clamped = ClampRank(rank);
+        judgeWindowTable = judgeWindowTableByRank[clamped];
     }
 
     private static bool CheckRange(long value, long early, long late)
@@ -94,9 +96,15 @@ public class Judge
         return new JudgeResult(Judgement.NONE, diff);
     }
     
+    public static int ClampRank(int rank)
+    {
+        return Math.Clamp(rank, 0, 3);
+    }
+    
     public static string GetRankDescription(int rank)
     {
-        switch (rank)
+        var clamped = ClampRank(rank);
+        switch (clamped)
         {
             case 0:
                 return "VERY HARD";
