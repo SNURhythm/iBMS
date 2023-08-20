@@ -2,28 +2,40 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Data;
+using System.Data.Sql;
+using System.Data.SqlClient;
 using Mono.Data.Sqlite;
 using System.IO;
 
 public class ChartDBHelper
 {
     public static ChartDBHelper Instance = new ChartDBHelper();
-
+    private IDbConnection connection;
 
     private ChartDBHelper()
     {
-        var connection = Connect();
+        connection = new SqliteConnection("URI=file:" + Path.Combine(Application.persistentDataPath, "chart.db"));
         connection.Open();
-        CreateTable(connection);
-        connection.Close();
+        // disable journaling
+        var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA journal_mode = OFF";
+        command.ExecuteReader();
+        
+
+        CreateTable();
+
+
     }
 
-    public SqliteConnection Connect()
+
+    public IDbTransaction BeginTransaction()
     {
-        return new SqliteConnection("URI=file:" + Path.Combine(Application.persistentDataPath, "chart.db"));
+        return connection.BeginTransaction();
     }
+    
+    
 
-    public void CreateTable(SqliteConnection connection)
+    public void CreateTable()
     {
         const string q = @"CREATE TABLE IF NOT EXISTS chart_meta (
                         path       TEXT
@@ -54,7 +66,7 @@ public class ChartDBHelper
         command.ExecuteReader();
     }
 
-    public void Insert(SqliteConnection connection, ChartMeta chartMeta)
+    public void Insert(ChartMeta chartMeta)
     {
         string q = @"REPLACE INTO chart_meta (
                         path,
@@ -129,7 +141,7 @@ public class ChartDBHelper
         command.ExecuteNonQuery();
     }
 
-    public List<ChartMeta> SelectAll(SqliteConnection connection)
+    public List<ChartMeta> SelectAll()
     {
         const string q = @"SELECT
                         path,
@@ -203,7 +215,7 @@ public class ChartDBHelper
         return chartMeta;
     }
 
-    public List<ChartMeta> Search(SqliteConnection connection, string text)
+    public List<ChartMeta> Search(string text)
     {
         const string q = @"SELECT path,
                         md5,
@@ -250,7 +262,7 @@ public class ChartDBHelper
     }
 
 
-    public void Clear(SqliteConnection connection)
+    public void Clear()
     {
         const string q = @"DELETE FROM chart_meta";
         var command = connection.CreateCommand();
@@ -258,7 +270,7 @@ public class ChartDBHelper
         command.ExecuteNonQuery();
     }
 
-    public void Delete(SqliteConnection connection, string path)
+    public void Delete(string path)
     {
         const string q = @"DELETE FROM chart_meta WHERE path = @path";
         var command = connection.CreateCommand();

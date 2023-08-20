@@ -91,14 +91,17 @@ public GameManager gm = GameManager.Instance;
     }
 
 
-    void UpdateChartCountLabel(Label label, int total, int loadingLeft, int errorCount)
+    void UpdateChartCountLabel(Label label, int loadingLeft, int errorCount)
     {
+        if(isScanning)
+        {
+            label.text = "Scanning...";
+            return;
+        }
         var sb = new StringBuilder();
-        sb.Append(total);
-        sb.Append(" chart(s)");
         if (loadingLeft > 0)
         {
-            sb.Append(" loading: ");
+            sb.Append("loading: ");
             sb.Append(loadingLeft);
         }
         if (errorCount > 0)
@@ -114,6 +117,7 @@ public GameManager gm = GameManager.Instance;
     {
         chartMetas.Sort((a, b) => string.Compare(a.Title, b.Title, StringComparison.Ordinal));
     }
+    bool isScanning = false;
     int errorCount = 0;
     int loadedCount = 0;
     int newCount = 0;
@@ -134,13 +138,11 @@ public GameManager gm = GameManager.Instance;
 
         #region Update DB
         var persistDataPath = Application.persistentDataPath;
-        var connection = ChartDBHelper.Instance.Connect();
-        connection.Open();
-        var chartMetas = ChartDBHelper.Instance.SelectAll(connection);
+        var chartMetas = ChartDBHelper.Instance.SelectAll();
         // sort by title
         Sort(chartMetas);
         initialTotal = chartMetas.Count;
-        UpdateChartCountLabel(chartCountLabel, initialTotal, 0, 0);
+        chartCountLabel.text = "Scanning";
         var info = new DirectoryInfo(persistDataPath);
         var token = parseCancellationTokenSource.Token;
         var thisGameObject = gameObject;
@@ -159,9 +161,10 @@ public GameManager gm = GameManager.Instance;
                     pathSet.Add(chart.BmsPath);
                 }
                 var diffs = new Dictionary<string, List<Diff>>();
+                isScanning = true;
                 FindNew(diffs, pathSet, info, token);
-                
-                newCount = diffs.Sum(diff => diff.Value.Count);
+                isScanning = false;
+                newCount = diffs.Count;
                 foreach (var path in pathSet)
                 {
                     if (token.IsCancellationRequested)
@@ -187,20 +190,20 @@ public GameManager gm = GameManager.Instance;
                 if (diffs.Count == 0) return;
                 Logger.Log("Scanning...");
 
-                // var tx = connection.BeginTransaction();
+                // var tx = ChartDBHelper.Instance.BeginTransaction();
                 try
                 {
 
                     Parallel.ForEach(diffs,
                         new ParallelOptions
-                            { MaxDegreeOfParallelism = 1, CancellationToken = token },
+                            { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
                         diffList =>
                         {
                             Logger.Log("Current Processor Id: " + Thread.GetCurrentProcessorId());
-Logger.Log("base path: " + diffList.Key);
+// Logger.Log("base path: " + diffList.Key);
                             
                                 //Logger.Log($"Parsing {diff.path}");
-                                
+                                Interlocked.Increment(ref loadedCount);
                                 foreach (var diff in diffList.Value)
                                 {
                                     if (token.IsCancellationRequested)
@@ -212,7 +215,7 @@ Logger.Log("base path: " + diffList.Key);
                                     if (diff.type == DiffType.Deleted)
                                     {
                                         // remove from db
-                                        ChartDBHelper.Instance.Delete(connection, diff.path);
+                                        ChartDBHelper.Instance.Delete(diff.path);
                                     }
                                     else
                                     {
@@ -233,14 +236,14 @@ Logger.Log("base path: " + diffList.Key);
                                             return;
                                         }
 
-                                        Interlocked.Increment(ref loadedCount);
+                                        
 
                                         var chartMeta = parser.GetChart().ChartMeta;
 
 
                                         // insert to db
                                         var stopWatch2 = new Stopwatch();
-                                        ChartDBHelper.Instance.Insert(connection, chartMeta);
+                                        ChartDBHelper.Instance.Insert(chartMeta);
                                         stopWatch2.Stop();
                                         // Logger.Log($"Inserted {diff.path} in {stopWatch2.ElapsedMilliseconds} ms");
                                     }
@@ -270,7 +273,7 @@ Logger.Log("base path: " + diffList.Key);
             {
                 UnityMainThreadDispatcher.Instance().Enqueue(() =>
                 {
-                    var all = ChartDBHelper.Instance.SelectAll(connection);
+                    var all = ChartDBHelper.Instance.SelectAll();
                     // update list if search text is empty
                     if (searchBox.value != "") return;
                     Sort(all);
@@ -454,7 +457,7 @@ Logger.Log("base path: " + diffList.Key);
             var keyword = evt.newValue.Trim();
 
             List<ChartMeta> charts;
-            charts = keyword.Length == 0 ? ChartDBHelper.Instance.SelectAll(connection) : ChartDBHelper.Instance.Search(connection, keyword);
+            charts = keyword.Length == 0 ? ChartDBHelper.Instance.SelectAll() : ChartDBHelper.Instance.Search(keyword);
             Sort(charts);
             chartListView.itemsSource = charts;
             chartListView.Rebuild();
@@ -537,7 +540,7 @@ Logger.Log("base path: " + diffList.Key);
     // Update is called once per frame
     void Update()
     {
-        UpdateChartCountLabel(chartCountLabel, loadedCount + initialTotal,
+        UpdateChartCountLabel(chartCountLabel,
             newCount - loadedCount - errorCount, errorCount);
     }
 
