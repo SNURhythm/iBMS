@@ -93,4 +93,21 @@ public class Judge
         }
         return new JudgeResult(Judgement.NONE, diff);
     }
+    
+    public static string GetRankDescription(int rank)
+    {
+        switch (rank)
+        {
+            case 0:
+                return "VERY HARD";
+            case 1:
+                return "HARD";
+            case 2:
+                return "NORMAL";
+            case 3:
+                return "EASY";
+            default:
+                return "EASY";
+        }
+    }
 }

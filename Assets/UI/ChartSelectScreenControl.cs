@@ -353,7 +353,7 @@ public class ChartSelectScreenControl : MonoBehaviour
                 bpmRow.Q<Label>("Value").text = bpmSb.ToString();
                 totalRow.Q<Label>("Value").text = data.Total.ToString(CultureInfo.InvariantCulture);
                 notesRow.Q<Label>("Value").text = data.TotalNotes.ToString();
-                judgementRow.Q<Label>("Value").text = data.Rank.ToString();
+                judgementRow.Q<Label>("Value").text = Judge.GetRankDescription(data.Rank);
                 
 
                 Debug.Log(data.BmsPath);
