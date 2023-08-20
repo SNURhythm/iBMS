@@ -242,7 +242,8 @@ public class ChartDBHelper
 
     public List<ChartMeta> Search(SqliteConnection connection, string text)
     {
-        const string q = @"SELECT path,
+        const string q = @"SELECT
+                        path,
                         md5,
                         sha256,
                         title,
