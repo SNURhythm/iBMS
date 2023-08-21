@@ -157,12 +157,18 @@ public class BGAPlayer
             foreach (var id in ids)
             {
                 if (!players.ContainsKey(id)) continue;
-                // Debug.Log("updating " + id + " at " + timeMicro);
+                 //Debug.Log("updating " + id + " at " + timeMicro);
                 if (timeMicro >= time)
                 {
                     players[id].skipOnDrop = true;
                     players[id].externalReferenceTime = (timeMicro - time) / 1000000d;
-                    if (!players[id].isPlaying) players[id].Play();
+                    players[id].time = (timeMicro - time) / 1000000d;
+                    if (!players[id].isPlaying)
+                    {
+                        players[id].Play();
+                        players[id].time = (timeMicro - time) / 1000000d;
+                        Debug.Log("playing " + id + " at " + timeMicro);
+                    }
                 }
             }
         }

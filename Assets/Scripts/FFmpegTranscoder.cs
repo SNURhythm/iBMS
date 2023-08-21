@@ -1,7 +1,32 @@
 ﻿
 /*
- * author: stjeong
- * https://github.com/stjeong/ffmpeg_autogen_cs/blob/master/transcoding/Program.cs
+ * original: https://ffmpeg.org/doxygen/trunk/transcoding_8c-example.html
+ * Copyright (c) 2010 Nicolas George
+ * Copyright (c) 2011 Stefano Sabatini
+ * Copyright (c) 2014 Andrey Utkin
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ * 
+ * translated to C# with FFmpeg.AutoGen by: stjeong https://github.com/stjeong/ffmpeg_autogen_cs/blob/master/transcoding/Program.cs
+ * 
+ * modified by: VioletXF (Change output codec)
  */
 
 using FFmpeg.AutoGen;
@@ -127,7 +152,15 @@ namespace transcoding
             AVStream* out_stream;
             AVStream* in_stream;
             AVCodecContext* dec_ctx, enc_ctx;
-            AVCodec* encoder;
+            AVCodec* videoEncoder = ffmpeg.avcodec_find_encoder(AVCodecID.AV_CODEC_ID_H264);
+            AVCodec* currentEncoder = null;
+            
+            if (videoEncoder == null)
+            {
+                Debug.LogError("Necessary encoder not found\n");
+                return ffmpeg.AVERROR_INVALIDDATA;
+            }
+
             int ret;
             uint i;
 
@@ -141,7 +174,7 @@ namespace transcoding
                     return ffmpeg.AVERROR_UNKNOWN;
                 }
             }
-
+            
             for (i = 0; i < ifmt_ctx->nb_streams; i++)
             {
                 out_stream = ffmpeg.avformat_new_stream(ofmt_ctx, null);
@@ -156,29 +189,22 @@ namespace transcoding
 
                 if (dec_ctx->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO || dec_ctx->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO)
                 {
-                    encoder = ffmpeg.avcodec_find_encoder(AVCodecID.AV_CODEC_ID_H264);
-                    if (encoder == null)
-                    {
-                        ffmpeg.av_log(null, ffmpeg.AV_LOG_FATAL, "Necessary encoder not found\n");
-                        return ffmpeg.AVERROR_INVALIDDATA;
-                    }
-
-                    enc_ctx = ffmpeg.avcodec_alloc_context3(encoder);
-                    ffmpeg.av_opt_set(enc_ctx->priv_data, "preset", "ultrafast", 0);
-                    if (enc_ctx == null)
-                    {
-                        ffmpeg.av_log(null, ffmpeg.AV_LOG_FATAL, "Failed to allocate the encoder context\n");
-                        return ffmpeg.AVERROR(ffmpeg.ENOMEM);
-                    }
-
                     if (dec_ctx->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO)
                     {
+                        currentEncoder = videoEncoder;
+                        enc_ctx = ffmpeg.avcodec_alloc_context3(currentEncoder);
+                        ffmpeg.av_opt_set(enc_ctx->priv_data, "preset", "ultrafast", 0);
+                        if (enc_ctx == null)
+                        {
+                            Debug.LogError("Failed to allocate the encoder context\n");
+                            return ffmpeg.AVERROR(ffmpeg.ENOMEM);
+                        }
                         enc_ctx->height = dec_ctx->height;
                         enc_ctx->width = dec_ctx->width;
                         enc_ctx->sample_aspect_ratio = dec_ctx->sample_aspect_ratio;
-                        if (encoder->pix_fmts != null)
+                        if (currentEncoder->pix_fmts != null)
                         {
-                            enc_ctx->pix_fmt = encoder->pix_fmts[0];
+                            enc_ctx->pix_fmt = currentEncoder->pix_fmts[0];
                         }
                         else
                         {
@@ -189,6 +215,18 @@ namespace transcoding
                     }
                     else
                     {
+                        currentEncoder = ffmpeg.avcodec_find_encoder(dec_ctx->codec_id);
+                        if (currentEncoder == null)
+                        {
+                            Debug.LogError($"Necessary encoder not found\n");
+                            return ffmpeg.AVERROR_INVALIDDATA;
+                        }
+                        enc_ctx = ffmpeg.avcodec_alloc_context3(currentEncoder);
+                        if (enc_ctx == null)
+                        {
+                            Debug.LogError("Failed to allocate the encoder context\n");
+                            return ffmpeg.AVERROR(ffmpeg.ENOMEM);
+                        }
                         // 2022-03-15 - cdba98bb80 - lavc 59.24.100 - avcodec.h codec_par.h
                         //   Update AVCodecContext for the new channel layout API: add ch_layout,
                         //   deprecate channels/channel_layout
@@ -197,7 +235,7 @@ namespace transcoding
                         enc_ctx->sample_rate = dec_ctx->sample_rate;
                         enc_ctx->channel_layout = dec_ctx->channel_layout;
                         enc_ctx->channels = ffmpeg.av_get_channel_layout_nb_channels(enc_ctx->channel_layout);
-                        enc_ctx->sample_fmt = ffmpeg.avcodec_find_encoder(AVCodecID.AV_CODEC_ID_AAC)->sample_fmts[0];
+                        enc_ctx->sample_fmt = currentEncoder->sample_fmts[0];
                         enc_ctx->time_base = new AVRational { num = 1, den = enc_ctx->sample_rate };
                     }
 
@@ -206,12 +244,16 @@ namespace transcoding
                         enc_ctx->flags |= ffmpeg.AV_CODEC_FLAG_GLOBAL_HEADER;
                     }
 
-                    ret = ffmpeg.avcodec_open2(enc_ctx, encoder, null);
+
+                    ret = ffmpeg.avcodec_open2(enc_ctx, currentEncoder, null);
                     if (ret < 0)
                     {
-                        Debug.LogError($"Cannot open video encoder for stream {i}\n");
+                        Debug.LogError($"Cannot open encoder for stream {i}\n");
                         return ret;
                     }
+
+                    
+
 
                     ret = ffmpeg.avcodec_parameters_from_context(out_stream->codecpar, enc_ctx);
                     if (ret < 0)
@@ -225,7 +267,7 @@ namespace transcoding
                 }
                 else if (dec_ctx->codec_type == AVMediaType.AVMEDIA_TYPE_UNKNOWN)
                 {
-                    ffmpeg.av_log(null, ffmpeg.AV_LOG_FATAL, $"Elementary stream #{i} is of unknown type, cannot proceed\n");
+                    Debug.LogError($"Elementary stream #{i} is of unknown type, cannot proceed\n");
                     return ffmpeg.AVERROR_INVALIDDATA;
                 }
                 else
@@ -256,7 +298,7 @@ namespace transcoding
             ret = ffmpeg.avformat_write_header(ofmt_ctx, null);
             if (ret < 0)
             {
-                Debug.LogError("Error occurred when opening output file\n");
+                Debug.LogError("Write header failed" + FFmpegHelper.av_strerror(ret));
                 return ret;
             }
 
@@ -278,6 +320,7 @@ namespace transcoding
             if (outputs == null || inputs == null || filter_graph == null)
             {
                 ret = ffmpeg.AVERROR(ffmpeg.ENOMEM);
+                Debug.LogError("Cannot allocate filter graph\n");
                 goto end;
             }
 
@@ -377,6 +420,7 @@ namespace transcoding
             else
             {
                 ret = ffmpeg.AVERROR_UNKNOWN;
+                Debug.LogError("Element type not supported\n");
                 goto end;
             }
 
@@ -393,16 +437,19 @@ namespace transcoding
             if (outputs->name == null || inputs->name == null)
             {
                 ret = ffmpeg.AVERROR(ffmpeg.ENOMEM);
+                Debug.LogError("Cannot av_strdup\n");
                 goto end;
             }
 
             if ((ret = ffmpeg.avfilter_graph_parse_ptr(filter_graph, filter_spec, &inputs, &outputs, null)) < 0)
             {
+                Debug.LogError("Cannot avfilter_graph_parse_ptr\n");
                 goto end;
             }
 
             if ((ret = ffmpeg.avfilter_graph_config(filter_graph, null)) < 0)
             {
+                Debug.LogError("Cannot avfilter_graph_config\n");
                 goto end;
             }
 
@@ -455,18 +502,21 @@ namespace transcoding
                 ret = init_filter(&filter_ctx[i], stream_ctx[i].dec_ctx, stream_ctx[i].enc_ctx, filter_spec);
                 if (ret != 0)
                 {
+                    Debug.LogError("init_filter failed\n");
                     return ret;
                 }
 
                 filter_ctx[i].enc_pkt = ffmpeg.av_packet_alloc();
                 if (filter_ctx[i].enc_pkt == null)
                 {
+                    Debug.LogError("av_packet_alloc failed\n");
                     return ffmpeg.AVERROR(ffmpeg.ENOMEM);
                 }
 
                 filter_ctx[i].filtered_frame = ffmpeg.av_frame_alloc();
                 if (filter_ctx[i].filtered_frame == null)
                 {
+                    Debug.LogError("av_frame_alloc failed\n");
                     return ffmpeg.AVERROR(ffmpeg.ENOMEM);
                 }
             }
@@ -489,6 +539,7 @@ namespace transcoding
 
             if (ret < 0)
             {
+                Debug.LogError("avcodec_send_frame failed\n");
                 return ret;
             }
 
@@ -506,6 +557,10 @@ namespace transcoding
 
                 ffmpeg.av_log(null, ffmpeg.AV_LOG_DEBUG, "Muxing frame\n");
                 ret = ffmpeg.av_interleaved_write_frame(ofmt_ctx, enc_pkt);
+                if (ret < 0)
+                {
+                    Debug.LogError("av_interleaved_write_frame failed\n");
+                }
             }
 
             return ret;
@@ -531,9 +586,14 @@ namespace transcoding
 
                 if (ret < 0)
                 {
+                    
                     if (ret == ffmpeg.AVERROR(ffmpeg.EAGAIN) || ret == ffmpeg.AVERROR_EOF)
                     {
                         ret = 0;
+                    }
+                    else
+                    {
+                        Debug.LogError("Error while pulling filtered frame from filters\n");
                     }
 
                     break;
@@ -545,6 +605,7 @@ namespace transcoding
 
                 if (ret < 0)
                 {
+                    Debug.LogError("encode_write_frame failed\n");
                     break;
                 }
             }
@@ -565,15 +626,6 @@ namespace transcoding
 
         unsafe public int Transcode(string input_filename, string output_filename)
         {
-            
-
-#if DEBUG
-            Console.WriteLine("Current directory: " + Environment.CurrentDirectory);
-            Console.WriteLine("Running in {0}-bit mode.", Environment.Is64BitProcess ? "64" : "32");
-            Console.WriteLine($"FFmpeg version info: {ffmpeg.av_version_info()}");
-            Console.WriteLine();
-#endif
-
             int ret;
             AVPacket* packet = null;
             uint stream_index;
@@ -582,21 +634,25 @@ namespace transcoding
             
             if ((ret = open_input_file(input_filename)) < 0)
             {
+                Debug.LogError("open_input_file failed\n");
                 goto end;
             }
 
             if ((ret = open_output_file(output_filename)) < 0)
             {
+                Debug.LogError("open_output_file failed\n");
                 goto end;
             }
 
             if ((ret = init_filters()) < 0)
             {
+                Debug.LogError("init_filters failed\n");
                 goto end;
             }
 
             if ((packet = ffmpeg.av_packet_alloc()) == null)
             {
+                Debug.LogError("av_packet_alloc failed\n");
                 goto end;
             }
 
@@ -604,6 +660,7 @@ namespace transcoding
             {
                 if ((ret = ffmpeg.av_read_frame(ifmt_ctx, packet)) < 0)
                 {
+                    Debug.LogError("av_read_frame failed\n");
                     break;
                 }
 
@@ -632,6 +689,7 @@ namespace transcoding
                         }
                         else if (ret < 0)
                         {
+                            Debug.LogError("Decoding failed\n");
                             goto end;
                         }
 
@@ -639,6 +697,7 @@ namespace transcoding
                         ret = filter_encode_write_frame(stream->dec_frame, stream_index);
                         if (ret < 0)
                         {
+                            Debug.LogError("filter_encode_write_frame failed\n");
                             goto end;
                         }
                     }
@@ -649,6 +708,7 @@ namespace transcoding
                     ret = ffmpeg.av_interleaved_write_frame(ofmt_ctx, packet);
                     if (ret < 0)
                     {
+                        Debug.LogError("av_interleaved_write_frame failed\n");
                         goto end;
                     }
                 }
