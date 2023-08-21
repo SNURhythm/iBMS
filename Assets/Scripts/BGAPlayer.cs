@@ -162,7 +162,6 @@ public class BGAPlayer
                 {
                     players[id].skipOnDrop = true;
                     players[id].externalReferenceTime = (timeMicro - time) / 1000000d;
-                    players[id].time = (timeMicro - time) / 1000000d;
                     if (!players[id].isPlaying)
                     {
                         players[id].Play();
