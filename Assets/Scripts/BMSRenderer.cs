@@ -1,8 +1,34 @@
 ﻿
 using System;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
+class RendererState
+{
+    public readonly Dictionary<Note, GameObject> noteObjects = new();
+    public readonly Dictionary<Measure, GameObject> measureLineObjects = new();
+    public Dictionary<GameObject, Queue<GameObject>> instancePool = new();
+    public int passedTimelineCount = 0;
+    public int passedMeasureCount = 0;
+    public List<LongNote> orphanLongNotes = new List<LongNote>();
+
+    public void Dispose()
+    {
+        // Destroy all note objects
+        foreach (var noteObject in noteObjects.Values)
+        {
+            Object.Destroy(noteObject);
+        }
+        
+        // Destroy all measure line objects
+        foreach (var measureLineObject in measureLineObjects.Values)
+        {
+            Object.Destroy(measureLineObject);
+        }
+    }
+}
 public class BMSRenderer : MonoBehaviour
 {
     public GameObject LaneArea;
@@ -12,7 +38,7 @@ public class BMSRenderer : MonoBehaviour
     private GameObject[] lineBeams;
     private GameObject[] keyBombs;
     private Chart chart;
-    private readonly float laneWidth = 3.0f;
+    private float laneWidth = 3.0f;
     private readonly float laneMargin = 0f;
     private readonly float noteHeight = 1.0f;
     private readonly float judgeLinePosition = 0.0f;
@@ -20,17 +46,12 @@ public class BMSRenderer : MonoBehaviour
 
     private float judgeLineBottom => judgeLinePosition - judgeLineHeight / 2;
 
-    private readonly Dictionary<Note, GameObject> noteObjects = new();
-    private readonly Dictionary<Measure, GameObject> measureLineObjects = new();
-    private GameObject squarePrefab;
-    private Dictionary<GameObject, Queue<GameObject>> instancePool = new();
-    private int passedTimelineCount = 0;
-    private int passedMeasureCount = 0;
-    private List<LongNote> orphanLongNotes = new List<LongNote>();
 
-    private double startBpm = 0;
-    private long lastDrawTime = 0;
-    private long deltaTime = 0;
+    private GameObject squarePrefab;
+    private RendererState state;
+
+
+
 
     private TimeLine lastTimeline;
 
@@ -45,8 +66,9 @@ public class BMSRenderer : MonoBehaviour
 
     public void Init(Chart chart)
     {
+        state = new RendererState();
         this.chart = chart;
-        this.startBpm = chart.Bpm;
+
         this.lastTimeline = chart.Measures[0].Timelines[0];
 
         TimeLine lastTimeline = chart.Measures[0].Timelines[0];
@@ -54,13 +76,26 @@ public class BMSRenderer : MonoBehaviour
 
         foreach (Measure measure in chart.Measures)
         {
-            measure.Pos = lastTimeline.Pos + (measure.Timing - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Bpm;
+            measure.Pos = lastTimeline.Pos + (measure.Timing - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Meta.Bpm;
             foreach (TimeLine timeline in measure.Timelines)
             {
-                timeline.Pos = lastTimeline.Pos + (timeline.Timing - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Bpm;
+                timeline.Pos = lastTimeline.Pos + (timeline.Timing - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Meta.Bpm;
                 lastTimeline = timeline;
             }
         }
+      
+    }
+
+    public void Reset()
+    {
+        state?.Dispose();
+        state = new RendererState();
+    }
+
+    public void Dispose()
+    {
+        state?.Dispose();
+        state = null;
     }
 
     private void Start()
@@ -74,6 +109,8 @@ public class BMSRenderer : MonoBehaviour
         squarePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
         squarePrefab.name = "Square";
         spawnPosition = NoteArea.transform.localScale.y;
+        
+          laneWidth = NoteArea.transform.localScale.x / (GameManager.Instance.KeyMode + 1);
         var laneDivider = new GameObject();
         laneDivider.SetActive(false);
 
@@ -90,13 +127,12 @@ public class BMSRenderer : MonoBehaviour
         laneBeamSr.sortingLayerName = "LaneBeam";
         laneBeamSr.drawMode = SpriteDrawMode.Sliced;
         laneBeamSr.size = new Vector2(laneWidth, NoteArea.transform.localScale.y);
-
-
+        Debug.Log("keys: " + GameManager.Instance.KeyMode);
         keyBombs = new GameObject[8];
         laneBeamEffects = new LaneBeamEffect[8];
         for (int i = 0; i < 8; i++)
         {
-            if (i != 6)
+            if (i != GameManager.Instance.KeyMode-1 && i <= GameManager.Instance.KeyMode)
             {
                 laneDivider.name = "LaneDivider";
                 var newLaneDivider = Instantiate(laneDivider, LaneArea.transform);
@@ -122,11 +158,8 @@ public class BMSRenderer : MonoBehaviour
             newLaneBeam.transform.localPosition = new Vector3(LaneToLeft(i), NoteArea.transform.localScale.y / 2 - judgeLineHeight / 2, 0);
             newLaneBeam.GetComponent<SpriteRenderer>().color = noteColors[i];
             laneBeamEffects[i] = new LaneBeamEffect(newLaneBeam, 0.2f);
-
-
-
+            
         }
-
     }
 
     public void PlayKeyBomb(int laneNumber, Judgement judgement)
@@ -148,28 +181,31 @@ public class BMSRenderer : MonoBehaviour
     {
         laneBeamEffects[laneNumber].ResumeEffect();
     }
-    
-    
 
-    public void Draw(long currentTime)
+
+    public void UpdateLaneBeam()
     {
         for (int i = 0; i < 8; i++)
         {
             laneBeamEffects[i].Tick();
         }
-        deltaTime = currentTime - lastDrawTime;
+    }
+    public void Draw(long currentTime)
+    {
+        if(state == null) return;
+
 
         var measures = chart.Measures;
 
         // update lastTimeline
-        for (int i = passedMeasureCount; i < measures.Count; i++)
+        for (int i = state.passedMeasureCount; i < measures.Count; i++)
         {
-            var isFirstMeasure = i == passedMeasureCount;
+            var isFirstMeasure = i == state.passedMeasureCount;
             var measure = measures[i];
             if (measure.Timing > currentTime) break;
 
 
-            for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
+            for (int j = isFirstMeasure ? state.passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing > currentTime) break;
@@ -179,16 +215,16 @@ public class BMSRenderer : MonoBehaviour
 
         // draw notes
         double currentPos = (currentTime < lastTimeline.Timing + lastTimeline.GetStopDuration()) ? lastTimeline.Pos
-                              : lastTimeline.Pos + (currentTime - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Bpm;
+                              : lastTimeline.Pos + (currentTime - (lastTimeline.Timing + lastTimeline.GetStopDuration())) * lastTimeline.Bpm / chart.Meta.Bpm;
 
         // Debug.Log($"lastTimeline.Timing: {lastTimeline.Timing}, lastTimtline.Pos: {lastTimeline.Pos}, currentTime: {currentTime}, currentPos: {currentPos}");
 
-        for (int i = passedMeasureCount; i < measures.Count; i++)
+        for (int i = state.passedMeasureCount; i < measures.Count; i++)
         {
-            var isFirstMeasure = i == passedMeasureCount;
+            var isFirstMeasure = i == state.passedMeasureCount;
             var measure = measures[i];
 
-            for (int j = isFirstMeasure ? passedTimelineCount : 0; j < measure.Timelines.Count; j++)
+            for (int j = isFirstMeasure ? state.passedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
                 var timeline = measure.Timelines[j];
 
@@ -200,7 +236,7 @@ public class BMSRenderer : MonoBehaviour
                 var shouldDestroyTimeline = IsUnderLowerBound(offset);
                 if (shouldDestroyTimeline && isFirstMeasure)
                 {
-                    passedTimelineCount++;
+                    state.passedTimelineCount++;
                     // Debug.Log($"Destroying timeline, passedTimelineCount: {passedTimelineCount}, total timeline count: {measure.Timelines.Count}");
                 }
 
@@ -217,7 +253,7 @@ public class BMSRenderer : MonoBehaviour
                             {
                                 if (shouldDestroyTimeline)
                                 {
-                                    orphanLongNotes.Remove(ln.Head);
+                                    state.orphanLongNotes.Remove(ln.Head);
                                 }
                                 else
                                 {
@@ -227,7 +263,7 @@ public class BMSRenderer : MonoBehaviour
                             else
                             {
                                 // add orphan long note's head
-                                orphanLongNotes.Add(ln);
+                                state.orphanLongNotes.Add(ln);
                             }
                         }
 
@@ -260,45 +296,42 @@ public class BMSRenderer : MonoBehaviour
                 //     if (invNote == null) continue;
                 // }
             }
-            if (passedTimelineCount == measure.Timelines.Count && isFirstMeasure)
+            if (state.passedTimelineCount == measure.Timelines.Count && isFirstMeasure)
             {
-                passedTimelineCount = 0;
-                passedMeasureCount++;
+                state.passedTimelineCount = 0;
+                state.passedMeasureCount++;
                 DestroyMeasureLine(measure);
                 // Debug.Log($"Skipping measure since all {measure.Timelines.Count} timelines are passed, passedMeasureCount: {passedMeasureCount}");
             }
         }
 
-        foreach (var orphanLongNote in orphanLongNotes)
+        foreach (var orphanLongNote in state.orphanLongNotes)
         {
             DrawLongNote(orphanLongNote, orphanLongNote.Timeline.Pos - currentPos, orphanLongNote.Tail.Timeline.Pos - currentPos, true);
         }
-
-
-        lastDrawTime = currentTime;
     }
 
     void DestroyNote(Note note)
     {
-        if (!noteObjects.ContainsKey(note)) return; // there is a case that note is not even instantiated (e.g. extremely fast bpm change, fps drop)
-        RecycleInstance(squarePrefab, noteObjects[note]);
-        noteObjects.Remove(note);
+        if (!state.noteObjects.ContainsKey(note)) return; // there is a case that note is not even instantiated (e.g. extremely fast bpm change, fps drop)
+        RecycleInstance(squarePrefab, state.noteObjects[note]);
+        state.noteObjects.Remove(note);
     }
 
     void RecycleInstance(GameObject prefab, GameObject instance)
     {
         instance.SetActive(false);
-        if (!instancePool.ContainsKey(squarePrefab))
+        if (!state.instancePool.ContainsKey(squarePrefab))
         {
-            instancePool.Add(prefab, new Queue<GameObject>());
+            state.instancePool.Add(prefab, new Queue<GameObject>());
         }
-        instancePool[squarePrefab].Enqueue(instance);
+        state.instancePool[squarePrefab].Enqueue(instance);
     }
     GameObject GetInstance(GameObject prefab)
     {
-        if (instancePool.ContainsKey(prefab) && instancePool[prefab].Count > 0)
+        if (state.instancePool.ContainsKey(prefab) && state.instancePool[prefab].Count > 0)
         {
-            var instance = instancePool[prefab].Dequeue();
+            var instance = state.instancePool[prefab].Dequeue();
             instance.SetActive(true);
             return instance;
         }
@@ -311,31 +344,31 @@ public class BMSRenderer : MonoBehaviour
     }
     void DestroyMeasureLine(Measure measure)
     {
-        if (!measureLineObjects.ContainsKey(measure)) return;
-        RecycleInstance(squarePrefab, measureLineObjects[measure]);
-        measureLineObjects.Remove(measure);
+        if (!state.measureLineObjects.ContainsKey(measure)) return;
+        RecycleInstance(squarePrefab, state.measureLineObjects[measure]);
+        state.measureLineObjects.Remove(measure);
 
     }
     void DrawMeasureLine(Measure measure, double offset)
     {
         var top = OffsetToTop(offset);
 
-        if (measureLineObjects.ContainsKey(measure))
+        if (state.measureLineObjects.ContainsKey(measure))
         {
-            measureLineObjects[measure].transform.localPosition = new Vector3(laneWidth * 7 / 2, top - noteHeight / 2, 0);
-            measureLineObjects[measure].SetActive(true);
+            state.measureLineObjects[measure].transform.localPosition = new Vector3(laneWidth * (GameManager.Instance.KeyMode) / 2 + laneWidth/2, top - noteHeight / 2, 0);
+            state.measureLineObjects[measure].SetActive(true);
         }
         else
         {
             var measureLineObject = GetInstance(squarePrefab);
-            measureLineObject.transform.localPosition = new Vector3(laneWidth * 7 / 2, top - noteHeight / 2, 0);
-            measureLineObject.transform.localScale = new Vector3(laneWidth * 8, 0.2f, 0);
+            measureLineObject.transform.localPosition = new Vector3(laneWidth * (GameManager.Instance.KeyMode) / 2 + laneWidth/2, top - noteHeight / 2, 0);
+            measureLineObject.transform.localScale = new Vector3(laneWidth * (GameManager.Instance.KeyMode+1), 0.2f, 0);
             var spriteRenderer = measureLineObject.GetComponent<SpriteRenderer>();
             spriteRenderer.color = new Color(0.5f, 0.5f, 0.5f, 0.5f);
 
             spriteRenderer.sortingLayerName = "MeasureLine";
             measureLineObject.name = "MeasureLine";
-            measureLineObjects.Add(measure, measureLineObject);
+            state.measureLineObjects.Add(measure, measureLineObject);
             measureLineObject.SetActive(true);
         }
 
@@ -346,9 +379,9 @@ public class BMSRenderer : MonoBehaviour
         var left = LaneToLeft(note.Lane);
 
         // draw note
-        if (noteObjects.ContainsKey(note))
+        if (state.noteObjects.ContainsKey(note))
         {
-            var noteObject = noteObjects[note];
+            var noteObject = state.noteObjects[note];
             noteObject.transform.localPosition = new Vector3(left, OffsetToTop(offset), 0);
             noteObject.SetActive(true);
         }
@@ -361,7 +394,7 @@ public class BMSRenderer : MonoBehaviour
             spriteRenderer.color = noteColors[note.Lane];
             spriteRenderer.sortingLayerName = "Note";
             noteObject.name = "Note";
-            noteObjects.Add(note, noteObject);
+            state.noteObjects.Add(note, noteObject);
             noteObject.SetActive(true);
         }
     }
@@ -390,9 +423,9 @@ public class BMSRenderer : MonoBehaviour
         // we should make tail note have a height, not head, since head will be disappeared before tail is played
         if (!tailOnly)
         {
-            if (noteObjects.ContainsKey(head))
+            if (state.noteObjects.ContainsKey(head))
             {
-                var noteObject = noteObjects[head];
+                var noteObject = state.noteObjects[head];
                 noteObject.transform.localPosition = new Vector3(left, startTop, 0);
             }
             else
@@ -405,7 +438,7 @@ public class BMSRenderer : MonoBehaviour
                 spriteRenderer.sortingLayerName = "Note";
                 noteObject.name = "LongNoteHead";
 
-                noteObjects.Add(head, noteObject);
+                state.noteObjects.Add(head, noteObject);
                 noteObject.SetActive(true);
             }
         }
@@ -418,9 +451,9 @@ public class BMSRenderer : MonoBehaviour
         {
             alpha = head.IsPlayed ? 0.2f : 0.5f;
         }
-        if (noteObjects.ContainsKey(tail))
+        if (state.noteObjects.ContainsKey(tail))
         {
-            var noteObject = noteObjects[tail];
+            var noteObject = state.noteObjects[tail];
             noteObject.transform.localPosition = new Vector3(left, (startTop + endTop) / 2, 0);
             noteObject.transform.localScale = new Vector3(laneWidth, height, 0);
             var color = noteColors[tail.Lane];
@@ -437,14 +470,15 @@ public class BMSRenderer : MonoBehaviour
             spriteRenderer.color = new Color(color.r, color.g, color.b, alpha);
             spriteRenderer.sortingLayerName = "Note";
             noteObject.name = "LongNoteTail";
-            noteObjects.Add(tail, noteObject);
+            state.noteObjects.Add(tail, noteObject);
             noteObject.SetActive(true);
         }
     }
 
     float LaneToLeft(int lane)
     {
-        return (lane + 1) % 8 * (laneWidth + laneMargin);
+        if (lane == 7) return laneWidth / 2;
+        return (lane + 1) % (GameManager.Instance.KeyMode+1) * (laneWidth + laneMargin) + laneWidth / 2;
     }
 
     float OffsetToTop(double offset)

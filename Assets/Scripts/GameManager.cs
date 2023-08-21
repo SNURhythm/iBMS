@@ -8,4 +8,5 @@ public class GameManager
     public string BmsPath;
     public bool AutoPlay = false;
     public bool KeySound = true;
+    public int KeyMode = 5;
 }
