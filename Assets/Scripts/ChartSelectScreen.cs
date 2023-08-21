@@ -28,14 +28,7 @@ public class ChartSelectScreen : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        if (Application.platform == RuntimePlatform.IPhonePlayer)
-        {
-            ffmpeg.RootPath = Application.dataPath + "/Binaries/iOS/ffmpeg";
-        }
-        else
-        {
-            ffmpeg.RootPath = Application.dataPath + "/Binaries/Windows/ffmpeg";
-        }
+
     }
 
     private void OnEnable()
