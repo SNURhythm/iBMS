@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FMOD;
@@ -11,6 +13,7 @@ using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
+using UnityEngine.Scripting;
 using Debug = UnityEngine.Debug;
 
 class GameState
@@ -32,14 +35,13 @@ class GameState
     public int AutoPlayedTimelines = 0;
     public int AutoPlayedMeasures = 0;
     private long firstTiming = 0;
-    public void Init(Chart chart, bool addReadyMeasure)
+    public GameState(Chart chart, bool addReadyMeasure)
     {
-        Judge = new Judge(chart.Rank);
-        if (addReadyMeasure)
-        {
-            if(chart.Measures.Count > 1)
-                firstTiming = chart.Measures[1].Timelines[0].Timing;
-        }
+        Judge = new Judge(chart.Meta.Rank);
+        // if(addReadyMeasure)
+        //     if(chart.Measures.Count > 1)
+        //         firstTiming = chart.Measures[1].Timelines[0].Timing;
+        
     }
     
     public long GetCurrentDspTimeMicro(FMOD.System system, ChannelGroup channelGroup)
@@ -88,7 +90,7 @@ public class RhythmControl : MonoBehaviour
     private BMSParser parser;
     private BMSRenderer bmsRenderer;
     private BGAPlayer bgaPlayer;
-    private GameState gameState = new GameState();
+    private GameState gameState = null;
     private bool IsPaused = false;
 
 
@@ -107,12 +109,16 @@ public class RhythmControl : MonoBehaviour
     // Start is called before the first frame update
     private void Start()
     {
+        // make garbage collection manual
+        #if !UNITY_EDITOR
+            GarbageCollector.GCMode = GarbageCollector.Mode.Manual;
+        #endif
 #if UNITY_EDITOR
         EditorApplication.pauseStateChanged += OnPauseStateChanged;
         lastPauseState = EditorApplication.isPaused ? PauseState.Paused : PauseState.Unpaused;
 #endif
-        RuntimeManager.StudioSystem.release();
-        RuntimeManager.CoreSystem.release();
+        // RuntimeManager.StudioSystem.release();
+        // RuntimeManager.CoreSystem.release();
         Factory.System_Create(out system); // TODO: make system singleton
         system.setSoftwareChannels(MaxRealChannels);
         system.setSoftwareFormat(48000, SPEAKERMODE.DEFAULT, 0);
@@ -124,20 +130,22 @@ public class RhythmControl : MonoBehaviour
         bmsRenderer = GetComponent<BMSRenderer>();
         metronomeBytes = Resources.Load<TextAsset>("Sfx/metronome").bytes;
         LoadGame();
-        Debug.Log("Load Complete");
+
     }
 
 
     // Update is called once per frame
     private void Update()
     {
+        bmsRenderer.UpdateLaneBeam();
+        if (gameState == null) return;
         if (!gameState.IsPlaying) return;
         var currentDspTime = gameState.GetCurrentDspTimeMicro(system, channelGroup);
         gameState.MaxCompensatedDspTime = Math.Max(gameState.MaxCompensatedDspTime, gameState.GetCompensatedDspTimeMicro(system, channelGroup));
         var time = Math.Max(currentDspTime, gameState.MaxCompensatedDspTime);
         bmsRenderer.Draw(time);
 
-        if (time >= parser.GetChart().PlayLength + TimeMargin)
+        if (time >= parser.GetChart().Meta.PlayLength + TimeMargin)
         {
             gameState.IsPlaying = false;
             UnloadGame();
@@ -150,6 +158,7 @@ public class RhythmControl : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (gameState == null) return;
         // channelGroup.getDSPClock(out var dspclock, out var parentclock);
         system.update();
         // system.getSoftwareFormat(out var samplerate, out _, out _);
@@ -158,6 +167,7 @@ public class RhythmControl : MonoBehaviour
         // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
         // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
+        
         var availableChannels = MaxBgRealChannels - realChannels;
         if (availableChannels > 0 && gameState.SoundQueue.Count > 0)
         {
@@ -306,12 +316,15 @@ public class RhythmControl : MonoBehaviour
 
     public void PressLane(int lane, double inputDelay = 0)
     {
-        channelGroup.getPaused(out var isPaused);
-        if (isPaused) return;
         bmsRenderer.StartLaneBeamEffect(lane);
+        if (gameState == null) return;
+        if (!gameState.IsPlaying) return;
+
+
         // Debug.Log("Press: " + lane + ", " + inputDelay);
         var measures = parser.GetChart().Measures;
         var pressedTime = gameState.GetCompensatedDspTimeMicro(system, channelGroup) - (long)(inputDelay * 1000000);
+
         for (int i = gameState.PassedMeasureCount; i < measures.Count; i++)
         {
             var isFirstMeasure = i == gameState.PassedMeasureCount;
@@ -365,9 +378,10 @@ public class RhythmControl : MonoBehaviour
 
     public void ReleaseLane(int lane, double inputDelay = 0)
     {
-        channelGroup.getPaused(out var isPaused);
-        if (isPaused) return;
         bmsRenderer.ResumeLaneBeamEffect(lane);
+        if (gameState == null) return;
+        if (!gameState.IsPlaying) return;
+
         // Debug.Log("Release: " + lane);
         var releasedTime = gameState.GetCompensatedDspTimeMicro(system, channelGroup) - (long)(inputDelay * 1000000);
         var measures = parser.GetChart().Measures;
@@ -443,7 +457,7 @@ public class RhythmControl : MonoBehaviour
             }
         }));
         channelGroup.getDSPClock(out gameState.StartDSPClock, out _);
-        channelGroup.setPaused(IsPaused);
+        channelGroup.setPaused(true);
         Debug.Log("Play");
         parser.GetChart().Measures.ForEach(measure => measure.Timelines.ForEach(timeline =>
         {
@@ -464,14 +478,15 @@ public class RhythmControl : MonoBehaviour
                 // Debug.Log("BgnWav: " + note.Wav+" Timing: "+timeline.Timing);
                 ScheduleSound(timeline.Timing, note.Wav);
             });
-            timeline.InvisibleNotes.ForEach(note =>
-            {
-                if (note == null || note.Wav == BMSParser.NoWav) return;
-                // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
-
-                ScheduleSound(timeline.Timing, note.Wav);
-            });
+            // timeline.InvisibleNotes.ForEach(note =>
+            // {
+            //     if (note == null || note.Wav == BMSParser.NoWav) return;
+            //     // Debug.Log("InvNoteTiming: " + timeline.timing / 1000);
+            //
+            //     ScheduleSound(timeline.Timing, note.Wav);
+            // });
         }));
+        channelGroup.setPaused(IsPaused);
 
         
         gameState.IsPlaying = !IsPaused;
@@ -517,46 +532,78 @@ public class RhythmControl : MonoBehaviour
             parser.Parse(GameManager.Instance.BmsPath, addReadyMeasure);
             ct.ThrowIfCancellationRequested();
             wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
-
+            
+            var tasks = new Task<(Sound, (int, string))>[36 * 36];
             for (var i = 0; i < 36 * 36; i++)
             {
-                ct.ThrowIfCancellationRequested();
-                var wavFileName = parser.GetWavFileName(i);
-                var bmpFileName = parser.GetBmpFileName(i);
-                if (wavFileName != null)
+                var id = i;
+                tasks[i] = Task.Run(() =>
                 {
-                    byte[] wavBytes = GetWavBytes(basePath + "/" + wavFileName);
-                    if (wavBytes == null)
+                    ct.ThrowIfCancellationRequested();
+                    var wavFileName = parser.GetWavFileName(id);
+                    var bmpFileName = parser.GetBmpFileName(id);
+                    Sound sound = default;
+                    if (wavFileName != null)
                     {
-                        Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(i));
-                    }
-                    else
-                    {
-                        var createSoundExInfo = new CREATESOUNDEXINFO
+                        byte[] wavBytes = GetWavBytes(Path.Combine(basePath, wavFileName));
+                        ct.ThrowIfCancellationRequested();
+                        if (wavBytes == null)
                         {
-                            length = (uint)wavBytes.Length,
-                            cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
-                        };
-                        result = system.createSound(wavBytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
-                            ref createSoundExInfo, out var sound);
-                        if (result != RESULT.OK)
-                        {
-                            Debug.LogWarning($"createSound failed wav{i}. {result}");
-                            continue;
+                            Debug.LogWarning("wavBytes is null:" + parser.GetWavFileName(id));
                         }
-                        wavSounds[i] = sound;
-                        wavSounds[i].setLoopCount(0);
-                        // _system.playSound(wav[i], _channelGroup, true, out channel);
+                        else
+                        {
+                            var createSoundExInfo = new CREATESOUNDEXINFO
+                            {
+                                length = (uint)wavBytes.Length,
+                                cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
+                            };
+                            result = system.createSound(wavBytes,
+                                MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+                                ref createSoundExInfo, out sound);
+                            if (result != RESULT.OK)
+                            {
+                                Debug.LogWarning($"createSound failed wav{id}. {result}");
+                            }
 
-                        
+                            ct.ThrowIfCancellationRequested();
+
+                            // _system.playSound(wav[i], _channelGroup, true, out channel);
+                        }
                     }
-                }
 
-                if (bmpFileName != null)
+                    (int id, string path) bgainfo = (-1, null);
+                    if (bmpFileName != null)
+                    {
+
+                        bgainfo = (id, Path.Combine(basePath, bmpFileName));
+                    }
+
+                    return (sound, bgainfo);
+                }, ct);
+            }
+
+            try
+            {
+                Task.WhenAll(tasks).Wait(ct);
+                for(var i = 0; i < 36 * 36; i++)
                 {
-                    bgas.Add((i, basePath + "/" + bmpFileName));
+                    var (sound, bgainfo) = ((Sound sound, (int id, string path) bgainfo))tasks[i].Result;
+                    
+                    wavSounds[i] = sound; // To prevent concurrent modification, we should wait for all tasks to complete before assigning wavSounds.
+                    wavSounds[i].setLoopCount(0);
+                    if (bgainfo.id != -1)
+                    {
+                        bgas.Add(bgainfo); // Same as above.
+                    }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                Debug.Log("LoadGameTask is canceled");
+                return;
+            }
+
             var ms = blockSize * 1000.0f / frequency;
 
             Debug.Log($"Mixer blockSize        = {ms} ms");
@@ -571,13 +618,15 @@ public class RhythmControl : MonoBehaviour
             {
                 // We should load bga in main thread because it adds VideoPlayer on main camera.
                 // And it is OK to call this method synchronously because VideoPlayer loads video asynchronously.
+                
                 bgaPlayer.Load(id, path);
             }
 
             bmsRenderer.Init(parser.GetChart());
-            gameState.Init(parser.GetChart(), addReadyMeasure);
+            gameState = new(parser.GetChart(), addReadyMeasure);
             
-            Debug.Log($"PlayLength: {parser.GetChart().PlayLength}, TotalLength: {parser.GetChart().TotalLength}");
+            Debug.Log("Load Complete");
+            Debug.Log($"PlayLength: {parser.GetChart().Meta.PlayLength}, TotalLength: {parser.GetChart().Meta.TotalLength}");
             if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
             {
                 bgaPlayer.OnAllPlayersLoaded += (sender, args) =>
@@ -599,6 +648,7 @@ public class RhythmControl : MonoBehaviour
 
     private void UnloadGame()
     {
+        gameState = null;
         isLoaded = false;
         loadGameTokenSource.Cancel();
         try
@@ -609,20 +659,24 @@ public class RhythmControl : MonoBehaviour
         {
             // ignored
         }
+        bgaPlayer.Dispose();
 
         // release all sounds
         foreach (var (i, sound) in wavSounds)
         {
-            if (sound.hasHandle())
-            {
-                sound.release();
-            }
+            sound.release();
         }
-
+        
+        bmsRenderer.Dispose();
         // release system
         system.release();
         Resources.UnloadUnusedAssets();
         System.GC.Collect();
+        // make garbage collector automatically collect
+        
+#if !UNITY_EDITOR
+            GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
+#endif
     }
 
 
@@ -686,7 +740,7 @@ public class RhythmControl : MonoBehaviour
         PausePanel.SetActive(false);
         channelGroup.stop();
         gameState.IsPlaying = false;
-        gameState = new GameState();
+        gameState = null;
         bmsRenderer.Reset();
         bgaPlayer.Reset();
         System.GC.Collect();
@@ -696,7 +750,7 @@ public class RhythmControl : MonoBehaviour
             timeline.Notes.ForEach(note => note?.Reset());
         }));
 
-        gameState.Init(parser.GetChart(), addReadyMeasure);
+        gameState = new(parser.GetChart(), addReadyMeasure);
 
         StartGame();
     }
@@ -706,7 +760,12 @@ public class RhythmControl : MonoBehaviour
     {
         IsPaused = false;
         channelGroup.setPaused(false);
-        gameState.IsPlaying = true;
+        
+        if (gameState != null)
+        {
+            gameState.IsPlaying = true;
+        }
+
         bgaPlayer.ResumeAll(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
         PausePanel.SetActive(false);
     }
@@ -715,9 +774,15 @@ public class RhythmControl : MonoBehaviour
     {
         IsPaused = true;
         channelGroup.setPaused(true);
-        gameState.IsPlaying = false;
+        
+        if (gameState != null)
+        {
+            gameState.IsPlaying = false;
+        }
+
         bgaPlayer.PauseAll();
         PausePanel.SetActive(true);
+        System.GC.Collect();
     }
 
     void OnApplicationPause(bool pauseStatus)
@@ -733,8 +798,13 @@ public class RhythmControl : MonoBehaviour
     }
 
 
+    private int lastRenderedCombo = 0;
+    private Judgement lastRenderedJudgement;
+    private string lastComboString = "";
     private void OnGUI()
     {
+        if(gameState == null)
+            return;
         var style = new GUIStyle
         {
             fontSize = 120,
@@ -747,15 +817,36 @@ public class RhythmControl : MonoBehaviour
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
-        if (gameState.Combo > 0 || gameState.LatestJudgement == Judgement.BAD || gameState.LatestJudgement == Judgement.KPOOR)
-            GUILayout.Label($"{gameState.Combo} {gameState.LatestJudgement}", style);
+        if (gameState.Combo > 0 || gameState.LatestJudgement == Judgement.BAD ||
+            gameState.LatestJudgement == Judgement.KPOOR)
+        {
+            if(gameState.Combo != lastRenderedCombo || gameState.LatestJudgement != lastRenderedJudgement)
+            {
+                lastRenderedCombo = gameState.Combo;
+                lastRenderedJudgement = gameState.LatestJudgement;
+                var sb = new StringBuilder();
+                sb.Append(gameState.Combo);
+                sb.Append(' ');
+                sb.Append(gameState.LatestJudgement);
+                lastComboString = sb.ToString();
+            }
+            GUILayout.Label(lastComboString, style);
+        }
 
         GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
         GUILayout.FlexibleSpace();
         GUILayout.BeginHorizontal();
         if (parser.GetChart() != null && isLoaded)
-            GUILayout.Label($"{gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000}/{(parser.GetChart().TotalLength + TimeMargin) / 1000000}", style);
+        {
+            var sb = new StringBuilder();
+            sb.Append(gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000);
+            sb.Append('/');
+            sb.Append((parser.GetChart().Meta.TotalLength + TimeMargin) / 1000000);
+            
+            GUILayout.Label(sb.ToString(), style);
+
+        }
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
 

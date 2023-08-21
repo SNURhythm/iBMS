@@ -11,8 +11,10 @@ using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 public class Input : MonoBehaviour
 {
     [SerializeField] public GameObject LaneArea; // TODO: use config instead
+    [SerializeField] public GameObject NoteArea;
     private RhythmControl rhythmControl;
     private IDisposable eventListener;
+    private int keyCount;
     private void Awake()
     {
         // set polling frequency to 1000Hz
@@ -20,7 +22,7 @@ public class Input : MonoBehaviour
         // set fixed update rate to 1000Hz
         Time.fixedDeltaTime = 1.0f / 1000.0f;
     }
-
+    
     private void Start()
     {
         rhythmControl = GetComponent<RhythmControl>();
@@ -70,31 +72,36 @@ public class Input : MonoBehaviour
             switch (key.keyCode)
             {
                 case Key.A:
-                    laneNumber = 0;
+                    if (GameManager.Instance.KeyMode == 7) laneNumber = 0;
                     break;
                 case Key.S:
-                    laneNumber = 1;
+                    if (GameManager.Instance.KeyMode == 7) laneNumber = 1;
+                    else laneNumber = 0;
                     break;
                 case Key.D:
-                    laneNumber = 2;
+                    if (GameManager.Instance.KeyMode == 7) laneNumber = 2;
+                    else laneNumber = 1;
                     break;
                 case Key.Space:
-                    laneNumber = 3;
+                    if (GameManager.Instance.KeyMode == 7) laneNumber = 3;
+                    else laneNumber = 2;
                     break;
                 case Key.L:
-                    laneNumber = 4;
+                    if (GameManager.Instance.KeyMode == 7) laneNumber = 4;
+                    else laneNumber = 3;
                     break;
                 case Key.Semicolon:
-                    laneNumber = 5;
+                    if (GameManager.Instance.KeyMode == 7) laneNumber = 5;
+                    else laneNumber = 4;
                     break;
                 case Key.Quote:
-                    laneNumber = 6;
+                    if (GameManager.Instance.KeyMode == 7) laneNumber = 6;
                     break;
                 case Key.LeftShift:
                     laneNumber = 7;
                     break;
             }
-            if (laneNumber >= 0 && laneNumber < 8)
+            if (laneNumber >= 0)
             {
                 if (!key.IsPressed())
                 {
@@ -134,7 +141,7 @@ public class Input : MonoBehaviour
         // // change color
         // circle.GetComponent<Renderer>().material.color = Color.red;
         // var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
-        // if (laneNumber >= 0 && laneNumber < 8)
+        // if (laneNumber >= 0 && laneNumber < (GameManager.Instance.KeyCount+1))
         //     rhythmControl.FingerMove(obj, laneNumber);
     }
 
@@ -143,9 +150,13 @@ public class Input : MonoBehaviour
         var z = LaneArea.transform.position.z - LaneArea.transform.localScale.y / 2 * Mathf.Sin(LaneArea.transform.rotation.eulerAngles.x * Mathf.Deg2Rad);
         var worldPosition = Camera.main.ScreenToWorldPoint(new Vector3(screenPosition.x,
             screenPosition.y, z));
-        var lanePosition = worldPosition.x + 3.0f * 8 / 2; // TODO: use constants
-        if (lanePosition < 0 || lanePosition > 3.0f * 8) return -1;
-        return (int)((lanePosition / 3.0f) + 7) % 8;
+        var laneWidth = NoteArea.transform.localScale.x / (GameManager.Instance.KeyMode+1);
+        var lanePosition = worldPosition.x + laneWidth * (GameManager.Instance.KeyMode+1) / 2; // TODO: use constants
+        if (lanePosition < 0 || lanePosition > laneWidth * (GameManager.Instance.KeyMode+1)) return -1;
+        var laneNumber = (int)((lanePosition / laneWidth) + GameManager.Instance.KeyMode) % (GameManager.Instance.KeyMode+1);
+        Debug.Log("Lane Number: " + laneNumber);
+        if (laneNumber == GameManager.Instance.KeyMode) return 7;
+        return laneNumber;
     }
 
     private readonly Dictionary<int, int> fingerToLane = new();
@@ -158,7 +169,7 @@ public class Input : MonoBehaviour
         if (Camera.main == null) return;
 
         var laneNumber = ToLaneNumber(obj.currentTouch.screenPosition);
-        if (laneNumber is < 0 or >= 8) return;
+        if (laneNumber < 0 || laneNumber >= 8) return;
         if (fingerToLane.ContainsKey(obj.index)) return;
         fingerToLane.Add(obj.index, laneNumber);
         laneFingerCount[laneNumber]++;

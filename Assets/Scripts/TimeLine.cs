@@ -61,6 +61,6 @@ public class TimeLine
     
     public double GetStopDuration()
     {
-        return 240 * 1000 * 1000 / 192 * StopLength / Bpm;
+        return 1250000D * StopLength / Bpm; // 1250000 = 240 * 1000 * 1000 / 192
     }
 }
