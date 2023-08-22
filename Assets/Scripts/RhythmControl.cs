@@ -97,7 +97,7 @@ public class RhythmControl : MonoBehaviour
     private FMOD.System system;
     private readonly CancellationTokenSource loadGameTokenSource = new();
     private Task loadGameTask;
-    private bool addReadyMeasure = true; // TODO: add to config
+    private bool addReadyMeasure = false; // TODO: add to config
     
     private bool isLoaded = false;
     private void Awake()
