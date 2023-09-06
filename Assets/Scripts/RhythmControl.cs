@@ -152,6 +152,7 @@ public class RhythmControl : MonoBehaviour
                     break;
                 }
             }
+            Debug.Log("MainLoopTask is canceled");
         }, mainLoopTokenSource.Token);
 
     }
@@ -273,8 +274,6 @@ public class RhythmControl : MonoBehaviour
                             if(GameManager.Instance.AutoPlay)
                             {
                                 PressNote(note, time);
-                                if (note is not LongNote)
-                                    ReleaseNote(note, time);
                             }
                         }
                     }
