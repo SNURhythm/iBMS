@@ -255,8 +255,7 @@ public class RhythmControl : MonoBehaviour
                     }
 
                     
-                }
-                if (timeline.Timing <= time)
+                } else if (timeline.Timing <= time)
                 {
                     // auto-release long notes
                     foreach (var note in timeline.Notes)
@@ -806,6 +805,10 @@ public class RhythmControl : MonoBehaviour
             PauseGame();
     }
 
+    private void OnApplicationQuit()
+    {
+        UnloadGame();
+    }
 
     private int lastRenderedCombo = 0;
     private Judgement lastRenderedJudgement;
