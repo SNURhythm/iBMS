@@ -249,9 +249,8 @@ public class RhythmControl : MonoBehaviour
                         {
                             ln.MissPress(time);
                         }
-
-                        gameState.Combo = 0;
-                        gameState.LatestJudgement = Judgement.KPOOR;
+                        var judgeResult = new JudgeResult(Judgement.POOR, time - timeline.Timing);
+                        OnJudge(judgeResult);
                     }
 
                     
@@ -267,10 +266,7 @@ public class RhythmControl : MonoBehaviour
                             if (!longNote.IsHolding) continue;
                             longNote.Release(time);
                             var headJudgeResult = gameState.Judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
-                            gameState.LatestJudgement = headJudgeResult.Judgement;
-                            if (headJudgeResult.ShouldComboBreak) gameState.Combo = 0;
-                            else if (headJudgeResult.Judgement != Judgement.KPOOR)
-                                gameState.Combo++;
+                            OnJudge(headJudgeResult);
                         }
                         else
                         {
@@ -386,11 +382,8 @@ public class RhythmControl : MonoBehaviour
                 note.Press(pressedTime);
 
             }
-            gameState.LatestJudgement = judgeResult.Judgement;
-
-            if (judgeResult.ShouldComboBreak) gameState.Combo = 0;
-            else if (judgeResult.Judgement != Judgement.KPOOR)
-                gameState.Combo++;
+            OnJudge(judgeResult);
+            
 
         }
     }
@@ -401,21 +394,31 @@ public class RhythmControl : MonoBehaviour
         if (note is LongNote { IsTail: true } longNote)
         {
             if (!longNote.Head.IsHolding) return;
+            longNote.Release(releasedTime);
             // if judgement is not good/great/pgreat, it will be judged as bad
             if (judgeResult.Judgement is Judgement.NONE or Judgement.KPOOR or Judgement.BAD)
             {
-                longNote.Release(releasedTime);
-                gameState.LatestJudgement = Judgement.BAD;
-                gameState.Combo = 0;
+                judgeResult.Judgement = Judgement.BAD;
+                OnJudge(judgeResult);
                 return;
             }
-            longNote.Release(releasedTime);
             var headJudgeResult = gameState.Judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
-            gameState.LatestJudgement = headJudgeResult.Judgement;
-            if (headJudgeResult.ShouldComboBreak) gameState.Combo = 0;
-            else if (headJudgeResult.Judgement != Judgement.KPOOR)
-                gameState.Combo++;
+            OnJudge(headJudgeResult);
         }
+    }
+
+    private void OnJudge(JudgeResult judgeResult)
+    {
+        gameState.Record[judgeResult.Judgement] = gameState.Record.GetValueOrDefault(judgeResult.Judgement) + 1;
+        gameState.LatestJudgement = judgeResult.Judgement;
+        if (judgeResult.ShouldComboBreak) gameState.Combo = 0;
+        else if (judgeResult.Judgement != Judgement.KPOOR)
+            gameState.Combo++;
+    }
+
+    private int CalculateScore()
+    {
+        return gameState.Record.GetValueOrDefault(Judgement.PGREAT) * 2 + gameState.Record.GetValueOrDefault(Judgement.GREAT);
     }
 
     private void OnDisable()
@@ -859,6 +862,8 @@ public class RhythmControl : MonoBehaviour
             GUILayout.Label(sb.ToString(), style);
 
         }
+        GUILayout.FlexibleSpace();
+        GUILayout.Label(CalculateScore().ToString(), style);
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
 
