@@ -332,9 +332,12 @@ public class BMSParser
                                     ++totalLongNotes;
                                 }
 
+                                var last = lastNote[laneNumber];
+                                lastNote[laneNumber] = null;
                                 if(metaOnly) break;
-                                var lastTimeline = lastNote[laneNumber].Timeline;
-                                var ln = new LongNote(lastNote[laneNumber].Wav);
+                                
+                                var lastTimeline = last.Timeline;
+                                var ln = new LongNote(last.Wav);
 
                                 ln.Tail = new LongNote(NoWav)
                                 {
@@ -346,16 +349,17 @@ public class BMSParser
                                 timeline.SetNote(
                                     laneNumber, ln.Tail
                                 );
-                                lastNote[laneNumber] = null;
+                                
                             }
                             else
                             {
+                                var note = new Note(ToWaveId(val));
+                                lastNote[laneNumber] = note;
                                 ++totalNotes;
                                 if(isScratch) ++totalScratchNotes;
                                 if(metaOnly) break;
-                                var note = new Note(ToWaveId(val));
                                 timeline.SetNote(laneNumber, note);
-                                lastNote[laneNumber] = note;
+                                
                             }
 
                             break;
