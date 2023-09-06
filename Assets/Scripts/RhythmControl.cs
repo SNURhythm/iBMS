@@ -33,9 +33,7 @@ class GameState
     public int Combo = 0;
     public Judgement LatestJudgement;
     public Dictionary<Judgement, int> Record = new();
-
-    public int AutoPlayedTimelines = 0;
-    public int AutoPlayedMeasures = 0;
+    
     private long firstTiming = 0;
     public GameState(Chart chart, bool addReadyMeasure)
     {
@@ -147,7 +145,6 @@ public class RhythmControl : MonoBehaviour
                 {
                     var currentDspTime = gameState.GetCurrentDspTimeMicro(system, channelGroup);
                     CheckPassedTimeline(currentDspTime);
-                    //if (GameManager.Instance.AutoPlay) AutoPlay(currentDspTime);
                 }
                 catch (Exception e)
                 {
@@ -220,9 +217,7 @@ public class RhythmControl : MonoBehaviour
                 gameState.SameDspClockCount = 0;
                 gameState.LastDspTime = currentDspTime;
             }
-
-            // CheckPassedTimeline(currentDspTime);
-            // if(GameManager.Instance.AutoPlay) AutoPlay(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
+            
             bgaPlayer.Update(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
         }
 
@@ -307,55 +302,6 @@ public class RhythmControl : MonoBehaviour
 
     private readonly long testRandomOffsetRange = 0;
     private float randomOffset = 0;
-
-    private void AutoPlay(long currentTime)
-    {
-        // if (randomOffset < 0)
-        // {
-        //     randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
-        // }
-        var measures = parser.GetChart().Measures;
-        for (int i = gameState.AutoPlayedMeasures; i < measures.Count; i++)
-        {
-            var measure = measures[i];
-            for (int j = gameState.AutoPlayedTimelines; j < measure.Timelines.Count; j++)
-            {
-
-                var timeline = measure.Timelines[j];
-
-                if (!(Math.Abs(timeline.Timing - currentTime) < randomOffset) &&
-                    timeline.Timing - currentTime >= -testRandomOffsetRange) continue;
-                // randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
-                // mimic press
-                foreach (var note in timeline.Notes)
-                {
-                    if (note == null) continue;
-                    if (note is LongNote { IsTail: true })
-                    {
-                        ReleaseNote(note, currentTime);
-                    }
-                    else
-                    {
-                        PressNote(note, currentTime);
-                        if (note is not LongNote)
-                            ReleaseNote(note, currentTime);
-
-                    }
-                    // Debug.Log($"Combo: {combo}");
-                }
-
-                gameState.AutoPlayedTimelines = j + 1;
-                // Debug.Log("Autoplayed: " + autoplayedTimelines);
-                if (gameState.AutoPlayedTimelines == measure.Timelines.Count)
-                {
-                    gameState.AutoPlayedTimelines = 0;
-                    gameState.AutoPlayedMeasures = i + 1;
-                }
-                i = measures.Count;
-                break;
-            }
-        }
-    }
 
     public void PressLane(int lane, double inputDelay = 0)
     {
