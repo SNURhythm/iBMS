@@ -15,6 +15,7 @@ using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.Scripting;
 using Debug = UnityEngine.Debug;
+using Thread = System.Threading.Thread;
 
 class GameState
 {
@@ -25,13 +26,13 @@ class GameState
     public int SameDspClockCount = 0;
     public long LastDspTime = 0;
     public long MaxCompensatedDspTime = 0;
-    
+
     public int PassedMeasureCount = 0;
     public int PassedTimelineCount = 0;
-    
+
     public int Combo = 0;
     public Judgement LatestJudgement;
-    
+
     public int AutoPlayedTimelines = 0;
     public int AutoPlayedMeasures = 0;
     private long firstTiming = 0;
@@ -41,16 +42,16 @@ class GameState
         // if(addReadyMeasure)
         //     if(chart.Measures.Count > 1)
         //         firstTiming = chart.Measures[1].Timelines[0].Timing;
-        
+
     }
-    
+
     public long GetCurrentDspTimeMicro(FMOD.System system, ChannelGroup channelGroup)
     {
         channelGroup.getDSPClock(out var dspClock, out var parentClock);
         system.getSoftwareFormat(out var sampleRate, out _, out _);
         var micro = (long)((double)dspClock / sampleRate * 1000000 - (double)StartDSPClock / sampleRate * 1000000);
-        if(micro>firstTiming)
-        { 
+        if (micro > firstTiming)
+        {
             return micro;
         }
         else
@@ -58,19 +59,19 @@ class GameState
             SameDspClockCount = 0;
             return firstTiming;
         }
-        
+
     }
 
     public long GetCompensatedDspTimeMicro(FMOD.System system, ChannelGroup channelGroup)
     {
 
-        return GetCurrentDspTimeMicro(system, channelGroup) + SameDspClockCount * (long)(Time.fixedDeltaTime * 1000000);
+        return GetCurrentDspTimeMicro(system, channelGroup);// + SameDspClockCount * (long)(Time.fixedDeltaTime * 1000000);
     }
 }
 public class RhythmControl : MonoBehaviour
 {
     public GameObject PausePanel;
-    
+
     private const int MaxRealChannels = 512;
     private const int MaxBgRealChannels = MaxRealChannels - 50;
     private const long TimeMargin = 5000000; // 5 seconds
@@ -96,9 +97,13 @@ public class RhythmControl : MonoBehaviour
 
     private FMOD.System system;
     private readonly CancellationTokenSource loadGameTokenSource = new();
+    private readonly CancellationTokenSource mainLoopTokenSource = new();
     private Task loadGameTask;
     private bool addReadyMeasure = true; // TODO: add to config
-    
+
+
+    private Task mainLoopTask;
+
     private bool isLoaded = false;
     private void Awake()
     {
@@ -110,9 +115,9 @@ public class RhythmControl : MonoBehaviour
     private void Start()
     {
         // make garbage collection manual
-        #if !UNITY_EDITOR
-            GarbageCollector.GCMode = GarbageCollector.Mode.Manual;
-        #endif
+#if !UNITY_EDITOR
+        GarbageCollector.GCMode = GarbageCollector.Mode.Manual;
+#endif
 #if UNITY_EDITOR
         EditorApplication.pauseStateChanged += OnPauseStateChanged;
         lastPauseState = EditorApplication.isPaused ? PauseState.Paused : PauseState.Unpaused;
@@ -130,6 +135,26 @@ public class RhythmControl : MonoBehaviour
         bmsRenderer = GetComponent<BMSRenderer>();
         metronomeBytes = Resources.Load<TextAsset>("Sfx/metronome").bytes;
         LoadGame();
+        mainLoopTask = Task.Run(() =>
+        {
+            while (true)
+            {
+                if (mainLoopTokenSource.IsCancellationRequested) break;
+                if (gameState == null) continue;
+                if (!gameState.IsPlaying) continue;
+                try
+                {
+                    var currentDspTime = gameState.GetCurrentDspTimeMicro(system, channelGroup);
+                    CheckPassedTimeline(currentDspTime);
+                    if (GameManager.Instance.AutoPlay) AutoPlay(currentDspTime);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError(e);
+                    break;
+                }
+            }
+        }, mainLoopTokenSource.Token);
 
     }
 
@@ -167,7 +192,7 @@ public class RhythmControl : MonoBehaviour
         // Debug.Log("dspclock: " + (double)dspclock / samplerate * 1000);
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
         // Debug.Log("playing channels: " + playingChannels + ", real channels: " + realChannels);
-        
+
         var availableChannels = MaxBgRealChannels - realChannels;
         if (availableChannels > 0 && gameState.SoundQueue.Count > 0)
         {
@@ -195,8 +220,8 @@ public class RhythmControl : MonoBehaviour
                 gameState.LastDspTime = currentDspTime;
             }
 
-            CheckPassedTimeline(currentDspTime);
-            if(GameManager.Instance.AutoPlay) AutoPlay(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
+            // CheckPassedTimeline(currentDspTime);
+            // if(GameManager.Instance.AutoPlay) AutoPlay(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
             bgaPlayer.Update(gameState.GetCompensatedDspTimeMicro(system, channelGroup));
         }
 
@@ -251,6 +276,7 @@ public class RhythmControl : MonoBehaviour
                         }
                     }
                 }
+                else break;
             }
             if (gameState.PassedTimelineCount == measure.Timelines.Count && isFirstMeasure)
             {
@@ -263,14 +289,14 @@ public class RhythmControl : MonoBehaviour
 
 
     private readonly long testRandomOffsetRange = 0;
-    private float randomOffset = -1;
+    private float randomOffset = 0;
 
     private void AutoPlay(long currentTime)
     {
-        if (randomOffset < 0)
-        {
-            randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
-        }
+        // if (randomOffset < 0)
+        // {
+        //     randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
+        // }
         var measures = parser.GetChart().Measures;
         for (int i = gameState.AutoPlayedMeasures; i < measures.Count; i++)
         {
@@ -282,20 +308,20 @@ public class RhythmControl : MonoBehaviour
 
                 if (!(Math.Abs(timeline.Timing - currentTime) < randomOffset) &&
                     timeline.Timing - currentTime >= -testRandomOffsetRange) continue;
-                randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
+                // randomOffset = UnityEngine.Random.Range(0, testRandomOffsetRange);
                 // mimic press
                 foreach (var note in timeline.Notes)
                 {
                     if (note == null) continue;
                     if (note is LongNote { IsTail: true })
                     {
-                        ReleaseLane(note.Lane);
+                        ReleaseNote(note, currentTime);
                     }
                     else
                     {
-                        PressLane(note.Lane);
-                        if(note is not LongNote)
-                            ReleaseLane(note.Lane);
+                        PressNote(note, currentTime);
+                        if (note is not LongNote)
+                            ReleaseNote(note, currentTime);
 
                     }
                     // Debug.Log($"Combo: {combo}");
@@ -337,39 +363,7 @@ public class RhythmControl : MonoBehaviour
                 var note = timeline.Notes[lane];
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
-                if (GameManager.Instance.KeySound && note.Wav != BMSParser.NoWav)
-                {
-                    var thread = new System.Threading.Thread(() => system.playSound(wavSounds[note.Wav], channelGroup, false, out var channel));
-                    thread.Start();
-
-                }
-                var judgeResult = gameState.Judge.JudgeNow(note, pressedTime);
-                if (judgeResult.Judgement != Judgement.NONE)
-                {
-
-                    if (judgeResult.IsNotePlayed)
-                    {
-                        bmsRenderer.PlayKeyBomb(lane, judgeResult.Judgement);
-                        if (note is LongNote longNote)
-                        {
-                            if (!longNote.IsTail)
-                            {
-                                longNote.Press(pressedTime);
-                            }
-                            // LongNote Head's judgement is determined on release
-                            return;
-                        }
-
-                        note.Press(pressedTime);
-                        
-                    }
-                    gameState.LatestJudgement = judgeResult.Judgement;
-
-                    if (judgeResult.ShouldComboBreak) gameState.Combo = 0;
-                    else if (judgeResult.Judgement != Judgement.KPOOR)
-                        gameState.Combo++;
-
-                }
+                PressNote(note, pressedTime);
                 return;
 
             }
@@ -396,27 +390,69 @@ public class RhythmControl : MonoBehaviour
                 var note = timeline.Notes[lane];
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
-                var judgeResult = gameState.Judge.JudgeNow(note, releasedTime);
-                if (note is LongNote { IsTail: true } longNote)
-                {
-                    if (!longNote.Head.IsHolding) return;
-                    // if judgement is not good/great/pgreat, it will be judged as bad
-                    if (judgeResult.Judgement is Judgement.NONE or Judgement.KPOOR or Judgement.BAD)
-                    {
-                        longNote.Release(releasedTime);
-                        gameState.LatestJudgement = Judgement.BAD;
-                        gameState.Combo = 0;
-                        return;
-                    }
-                    longNote.Release(releasedTime);
-                    var headJudgeResult = gameState.Judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
-                    gameState.LatestJudgement = headJudgeResult.Judgement;
-                    if (headJudgeResult.ShouldComboBreak) gameState.Combo = 0;
-                    else if (headJudgeResult.Judgement != Judgement.KPOOR)
-                        gameState.Combo++;
-                }
+                ReleaseNote(note, releasedTime);
                 return;
             }
+        }
+    }
+
+    private void PressNote(Note note, long pressedTime)
+    {
+        if (GameManager.Instance.KeySound && note.Wav != BMSParser.NoWav)
+        {
+            var thread = new System.Threading.Thread(() => system.playSound(wavSounds[note.Wav], channelGroup, false, out var channel));
+            thread.Start();
+
+        }
+        var judgeResult = gameState.Judge.JudgeNow(note, pressedTime);
+        if (judgeResult.Judgement != Judgement.NONE)
+        {
+
+            if (judgeResult.IsNotePlayed)
+            {
+                // bmsRenderer.PlayKeyBomb(lane, judgeResult.Judgement);
+                if (note is LongNote longNote)
+                {
+                    if (!longNote.IsTail)
+                    {
+                        longNote.Press(pressedTime);
+                    }
+                    // LongNote Head's judgement is determined on release
+                    return;
+                }
+
+                note.Press(pressedTime);
+
+            }
+            gameState.LatestJudgement = judgeResult.Judgement;
+
+            if (judgeResult.ShouldComboBreak) gameState.Combo = 0;
+            else if (judgeResult.Judgement != Judgement.KPOOR)
+                gameState.Combo++;
+
+        }
+    }
+
+    private void ReleaseNote(Note note, long releasedTime)
+    {
+        var judgeResult = gameState.Judge.JudgeNow(note, releasedTime);
+        if (note is LongNote { IsTail: true } longNote)
+        {
+            if (!longNote.Head.IsHolding) return;
+            // if judgement is not good/great/pgreat, it will be judged as bad
+            if (judgeResult.Judgement is Judgement.NONE or Judgement.KPOOR or Judgement.BAD)
+            {
+                longNote.Release(releasedTime);
+                gameState.LatestJudgement = Judgement.BAD;
+                gameState.Combo = 0;
+                return;
+            }
+            longNote.Release(releasedTime);
+            var headJudgeResult = gameState.Judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
+            gameState.LatestJudgement = headJudgeResult.Judgement;
+            if (headJudgeResult.ShouldComboBreak) gameState.Combo = 0;
+            else if (headJudgeResult.Judgement != Judgement.KPOOR)
+                gameState.Combo++;
         }
     }
 
@@ -430,7 +466,7 @@ public class RhythmControl : MonoBehaviour
         system.getChannelsPlaying(out var playingChannels, out var realChannels);
         var startDSP = gameState.StartDSPClock + MsToDSP(timing / 1000);
         if (!wavSounds.ContainsKey(wav)) return;
-        
+
         if (realChannels >= MaxBgRealChannels)
         {
             gameState.SoundQueue.Enqueue((startDSP, wav)); // Too many channels playing, queue the sound
@@ -488,9 +524,9 @@ public class RhythmControl : MonoBehaviour
         }));
         channelGroup.setPaused(IsPaused);
 
-        
+
         gameState.IsPlaying = !IsPaused;
-        
+
     }
 
     private Sound GetMetronomeSound()
@@ -523,7 +559,7 @@ public class RhythmControl : MonoBehaviour
         system.getSoftwareFormat(out var frequency, out _, out _);
         system.getMasterChannelGroup(out channelGroup);
         var bgas = new List<(int id, string path)>();
-        
+
         CancellationToken ct = loadGameTokenSource.Token;
         loadGameTask = Task.Run(() =>
         {
@@ -532,7 +568,7 @@ public class RhythmControl : MonoBehaviour
             parser.Parse(GameManager.Instance.BmsPath, addReadyMeasure);
             ct.ThrowIfCancellationRequested();
             wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
-            
+
             var tasks = new Task<(Sound, (int, string))>[36 * 36];
             for (var i = 0; i < 36 * 36; i++)
             {
@@ -586,10 +622,10 @@ public class RhythmControl : MonoBehaviour
             try
             {
                 Task.WhenAll(tasks).Wait(ct);
-                for(var i = 0; i < 36 * 36; i++)
+                for (var i = 0; i < 36 * 36; i++)
                 {
                     var (sound, bgainfo) = ((Sound sound, (int id, string path) bgainfo))tasks[i].Result;
-                    
+
                     wavSounds[i] = sound; // To prevent concurrent modification, we should wait for all tasks to complete before assigning wavSounds.
                     wavSounds[i].setLoopCount(0);
                     if (bgainfo.id != -1)
@@ -618,13 +654,13 @@ public class RhythmControl : MonoBehaviour
             {
                 // We should load bga in main thread because it adds VideoPlayer on main camera.
                 // And it is OK to call this method synchronously because VideoPlayer loads video asynchronously.
-                
+
                 bgaPlayer.Load(id, path);
             }
 
             bmsRenderer.Init(parser.GetChart());
             gameState = new(parser.GetChart(), addReadyMeasure);
-            
+
             Debug.Log("Load Complete");
             Debug.Log($"PlayLength: {parser.GetChart().Meta.PlayLength}, TotalLength: {parser.GetChart().Meta.TotalLength}");
             if (bgaPlayer.TotalPlayers != bgaPlayer.LoadedPlayers)
@@ -640,7 +676,8 @@ public class RhythmControl : MonoBehaviour
                 isLoaded = true;
                 StartGame();
             }
-        } catch (OperationCanceledException)
+        }
+        catch (OperationCanceledException)
         {
             Debug.Log("Load game canceled");
         }
@@ -651,9 +688,18 @@ public class RhythmControl : MonoBehaviour
         gameState = null;
         isLoaded = false;
         loadGameTokenSource.Cancel();
+        mainLoopTokenSource.Cancel();
         try
         {
             loadGameTask?.Wait();
+        }
+        catch (AggregateException)
+        {
+            // ignored
+        }
+        try
+        {
+            mainLoopTask?.Wait();
         }
         catch (AggregateException)
         {
@@ -666,16 +712,16 @@ public class RhythmControl : MonoBehaviour
         {
             sound.release();
         }
-        
+
         bmsRenderer.Dispose();
         // release system
         system.release();
         Resources.UnloadUnusedAssets();
         System.GC.Collect();
         // make garbage collector automatically collect
-        
+
 #if !UNITY_EDITOR
-            GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
+        GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
 #endif
     }
 
@@ -727,13 +773,13 @@ public class RhythmControl : MonoBehaviour
         return (ulong)(ms * sampleRate / 1000);
     }
 
-    
+
     public void ExitGame()
     {
         UnloadGame();
         SceneManager.LoadScene("ChartSelectScene");
     }
-    
+
     public void RetryGame()
     {
         IsPaused = false;
@@ -754,13 +800,13 @@ public class RhythmControl : MonoBehaviour
 
         StartGame();
     }
-    
+
 
     public void ResumeGame()
     {
         IsPaused = false;
         channelGroup.setPaused(false);
-        
+
         if (gameState != null)
         {
             gameState.IsPlaying = true;
@@ -774,7 +820,7 @@ public class RhythmControl : MonoBehaviour
     {
         IsPaused = true;
         channelGroup.setPaused(true);
-        
+
         if (gameState != null)
         {
             gameState.IsPlaying = false;
@@ -803,7 +849,7 @@ public class RhythmControl : MonoBehaviour
     private string lastComboString = "";
     private void OnGUI()
     {
-        if(gameState == null)
+        if (gameState == null)
             return;
         var style = new GUIStyle
         {
@@ -820,7 +866,7 @@ public class RhythmControl : MonoBehaviour
         if (gameState.Combo > 0 || gameState.LatestJudgement == Judgement.BAD ||
             gameState.LatestJudgement == Judgement.KPOOR)
         {
-            if(gameState.Combo != lastRenderedCombo || gameState.LatestJudgement != lastRenderedJudgement)
+            if (gameState.Combo != lastRenderedCombo || gameState.LatestJudgement != lastRenderedJudgement)
             {
                 lastRenderedCombo = gameState.Combo;
                 lastRenderedJudgement = gameState.LatestJudgement;
@@ -843,7 +889,7 @@ public class RhythmControl : MonoBehaviour
             sb.Append(gameState.GetCompensatedDspTimeMicro(system, channelGroup) / 1000000);
             sb.Append('/');
             sb.Append((parser.GetChart().Meta.TotalLength + TimeMargin) / 1000000);
-            
+
             GUILayout.Label(sb.ToString(), style);
 
         }
