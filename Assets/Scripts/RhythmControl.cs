@@ -32,6 +32,7 @@ class GameState
 
     public int Combo = 0;
     public Judgement LatestJudgement;
+    public Dictionary<Judgement, int> Record = new();
 
     public int AutoPlayedTimelines = 0;
     public int AutoPlayedMeasures = 0;
@@ -72,8 +73,8 @@ public class RhythmControl : MonoBehaviour
 {
     public GameObject PausePanel;
 
-    private const int MaxRealChannels = 512;
-    private const int MaxBgRealChannels = MaxRealChannels - 50;
+    private const int MaxRealChannels = 4092;
+    private const int MaxBgRealChannels = MaxRealChannels - 1024;
     private const long TimeMargin = 5000000; // 5 seconds
     private byte[] metronomeBytes;
 
@@ -146,7 +147,7 @@ public class RhythmControl : MonoBehaviour
                 {
                     var currentDspTime = gameState.GetCurrentDspTimeMicro(system, channelGroup);
                     CheckPassedTimeline(currentDspTime);
-                    if (GameManager.Instance.AutoPlay) AutoPlay(currentDspTime);
+                    //if (GameManager.Instance.AutoPlay) AutoPlay(currentDspTime);
                 }
                 catch (Exception e)
                 {
@@ -240,7 +241,8 @@ public class RhythmControl : MonoBehaviour
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < time - 200000)
                 {
-                    gameState.PassedTimelineCount++;
+                    if(isFirstMeasure)
+                        gameState.PassedTimelineCount++;
                     // make remaining notes POOR
                     foreach (var note in timeline.Notes)
                     {
@@ -256,8 +258,10 @@ public class RhythmControl : MonoBehaviour
                         gameState.Combo = 0;
                         gameState.LatestJudgement = Judgement.KPOOR;
                     }
+
+                    
                 }
-                else if (timeline.Timing <= time)
+                if (timeline.Timing <= time)
                 {
                     // auto-release long notes
                     foreach (var note in timeline.Notes)
@@ -274,16 +278,29 @@ public class RhythmControl : MonoBehaviour
                             else if (headJudgeResult.Judgement != Judgement.KPOOR)
                                 gameState.Combo++;
                         }
+                        else
+                        {
+                            if(GameManager.Instance.AutoPlay)
+                            {
+                                PressNote(note, time);
+                                if (note is not LongNote)
+                                    ReleaseNote(note, time);
+                            }
+                        }
                     }
                 }
-                else break;
+                else
+                {
+                    i = measures.Count;
+                    break;
+                }
+                
             }
             if (gameState.PassedTimelineCount == measure.Timelines.Count && isFirstMeasure)
             {
                 gameState.PassedTimelineCount = 0;
                 gameState.PassedMeasureCount++;
             }
-            else break;
         }
     }
 
