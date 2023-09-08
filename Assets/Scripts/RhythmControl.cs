@@ -841,7 +841,7 @@ public class RhythmControl : MonoBehaviour
         GUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
         if (gameState.Combo > 0 || gameState.LatestJudgement == Judgement.BAD ||
-            gameState.LatestJudgement == Judgement.KPOOR)
+            gameState.LatestJudgement == Judgement.KPOOR || gameState.LatestJudgement == Judgement.POOR)
         {
             if (gameState.Combo != lastRenderedCombo || gameState.LatestJudgement != lastRenderedJudgement)
             {
