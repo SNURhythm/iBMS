@@ -268,12 +268,21 @@ public class RhythmControl : MonoBehaviour
                             longNote.Release(time);
                             var headJudgeResult = gameState.Judge.JudgeNow(longNote.Head, longNote.Head.PlayedTime);
                             OnJudge(headJudgeResult);
+                            if (GameManager.Instance.AutoPlay)
+                            {
+                                bmsRenderer.ResumeLaneBeamEffect(note.Lane);
+                            }
                         }
                         else
                         {
                             if(GameManager.Instance.AutoPlay)
                             {
                                 PressNote(note, time);
+                                bmsRenderer.StartLaneBeamEffect(note.Lane);
+                                if (note is not LongNote { IsTail: false })
+                                {
+                                    bmsRenderer.ResumeLaneBeamEffect(note.Lane);
+                                }
                             }
                         }
                     }
@@ -367,7 +376,7 @@ public class RhythmControl : MonoBehaviour
 
             if (judgeResult.IsNotePlayed)
             {
-                // bmsRenderer.PlayKeyBomb(lane, judgeResult.Judgement);
+                bmsRenderer.PlayKeyBomb(note.Lane, judgeResult.Judgement);
                 if (note is LongNote longNote)
                 {
                     if (!longNote.IsTail)

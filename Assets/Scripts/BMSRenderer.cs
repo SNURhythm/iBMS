@@ -36,7 +36,7 @@ public class BMSRenderer : MonoBehaviour
     public GameObject ParticlePrefab;
     private LaneBeamEffect[] laneBeamEffects;
     private GameObject[] lineBeams;
-    private GameObject[] keyBombs;
+    private KeyBombEffect[] keyBombs;
     private Chart chart;
     private float laneWidth = 3.0f;
     private readonly float laneMargin = 0f;
@@ -128,7 +128,7 @@ public class BMSRenderer : MonoBehaviour
         laneBeamSr.drawMode = SpriteDrawMode.Sliced;
         laneBeamSr.size = new Vector2(laneWidth, NoteArea.transform.localScale.y);
         Debug.Log("keys: " + GameManager.Instance.KeyMode);
-        keyBombs = new GameObject[8];
+        keyBombs = new KeyBombEffect[8];
         laneBeamEffects = new LaneBeamEffect[8];
         for (int i = 0; i < 8; i++)
         {
@@ -149,9 +149,9 @@ public class BMSRenderer : MonoBehaviour
             keyBomb.GetComponent<ParticleSystemRenderer>().sortingLayerName = "KeyBomb";
             var ps = keyBomb.GetComponent<ParticleSystem>();
             var main = ps.main;
-            main.duration = 0.1f;
-            main.simulationSpeed = 2;
-            keyBombs[i] = keyBomb;
+            keyBomb.SetActive(true);
+            ps.Pause();
+            keyBombs[i] = new KeyBombEffect(ps, 2f);
 
             var newLaneBeam = Instantiate(laneBeam, LaneArea.transform);
             newLaneBeam.SetActive(true);
@@ -164,11 +164,9 @@ public class BMSRenderer : MonoBehaviour
 
     public void PlayKeyBomb(int laneNumber, Judgement judgement)
     {
-        var keyBomb = keyBombs[laneNumber];
-        keyBomb.SetActive(true);
-        var ps = keyBomb.GetComponent<ParticleSystem>();
-
-        ps.Play();
+        var ps = keyBombs[laneNumber];
+        //keyBomb.SetActive(true);
+        ps.StartEffect(0);
 
     }
 
@@ -188,6 +186,7 @@ public class BMSRenderer : MonoBehaviour
         for (int i = 0; i < 8; i++)
         {
             laneBeamEffects[i].Tick();
+            keyBombs[i].Tick();
         }
     }
     public void Draw(long currentTime)
