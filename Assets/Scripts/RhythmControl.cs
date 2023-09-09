@@ -64,7 +64,7 @@ class GameState
     public long GetCompensatedDspTimeMicro(FMOD.System system, ChannelGroup channelGroup)
     {
 
-        return GetCurrentDspTimeMicro(system, channelGroup);// + SameDspClockCount * (long)(Time.fixedDeltaTime * 1000000);
+        return GetCurrentDspTimeMicro(system, channelGroup) + SameDspClockCount * (long)(Time.fixedDeltaTime * 1000000);
     }
 }
 public class RhythmControl : MonoBehaviour

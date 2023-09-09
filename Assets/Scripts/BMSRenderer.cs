@@ -72,7 +72,7 @@ public class BMSRenderer : MonoBehaviour
         this.lastTimeline = chart.Measures[0].Timelines[0];
 
         TimeLine lastTimeline = chart.Measures[0].Timelines[0];
-        lastTimeline.Pos = 0.0;
+        lastTimeline.Pos = 0.0D;
 
         foreach (Measure measure in chart.Measures)
         {
@@ -484,7 +484,7 @@ public class BMSRenderer : MonoBehaviour
     float OffsetToTop(double offset)
     {
         // TODO: Implement
-        return (float)(judgeLinePosition + offset * 0.00007f);
+        return (float)(judgeLinePosition + offset * 0.00007D);
     }
 
 

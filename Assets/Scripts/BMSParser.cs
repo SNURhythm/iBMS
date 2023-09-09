@@ -438,7 +438,7 @@ public class BMSParser
                 if(cancellationToken.IsCancellationRequested) return;
 
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
-                double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
+                double interval = 240000000D * (position - lastPosition) * measure.Scale / currentBpm;
                 timePassed += interval;
                 timeline.Timing = (long)timePassed;
                 if (timeline.BpmChange)
@@ -468,7 +468,7 @@ public class BMSParser
                 };
                 measure.Timelines.Add(timeline);
             }
-            timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
+            timePassed += (240000000D * (1 - lastPosition) * measure.Scale / currentBpm);
 
         }
         // Debug.Log($"Postprocessing took: "+ stopwatch.ElapsedMilliseconds + "ms");
