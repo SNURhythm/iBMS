@@ -21,12 +21,12 @@
         PlayedTime = time;
     }
 
-    public void Press(long time)
+    public virtual void Press(long time)
     {
         Play(time);
     }
 
-    public void Reset()
+    public virtual void Reset()
     {
         IsPlayed = false;
         IsDead = false;

@@ -72,7 +72,7 @@ public class BMSRenderer : MonoBehaviour
         this.lastTimeline = chart.Measures[0].Timelines[0];
 
         TimeLine lastTimeline = chart.Measures[0].Timelines[0];
-        lastTimeline.Pos = 0.0;
+        lastTimeline.Pos = 0.0D;
 
         foreach (Measure measure in chart.Measures)
         {
@@ -390,7 +390,8 @@ public class BMSRenderer : MonoBehaviour
             noteObject.transform.localPosition = new Vector3(left, OffsetToTop(offset), 0);
             noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
             var spriteRenderer = noteObject.GetComponent<SpriteRenderer>();
-            spriteRenderer.color = noteColors[note.Lane];
+            spriteRenderer.color = note is LandmineNote ? Color.magenta : noteColors[note.Lane];
+
             spriteRenderer.sortingLayerName = "Note";
             noteObject.name = "Note";
             state.noteObjects.Add(note, noteObject);
@@ -483,7 +484,7 @@ public class BMSRenderer : MonoBehaviour
     float OffsetToTop(double offset)
     {
         // TODO: Implement
-        return (float)(judgeLinePosition + offset * 0.00007f);
+        return (float)(judgeLinePosition + offset * 0.00007D);
     }
 
 

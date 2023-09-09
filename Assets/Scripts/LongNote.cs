@@ -12,7 +12,7 @@ public class LongNote : Note
     }
 
 
-    public new void Press(long time)
+    public override void Press(long time)
     {
         Play(time);
         IsHolding = true;
@@ -32,7 +32,7 @@ public class LongNote : Note
 
     }
     
-    public new void Reset()
+    public override void Reset()
     {
         base.Reset();
         IsHolding = false;
