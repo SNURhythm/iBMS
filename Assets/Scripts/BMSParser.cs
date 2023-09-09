@@ -320,43 +320,46 @@ public class BMSParser
                             break;
                         case Channel.P1KeyBase:
                             var ch = DecodeBase36(val);
-                            if (ch == lnobj)
+                            if (ch == lnobj && lastNote[laneNumber] != null)
                             {
-                                if (lastNote[laneNumber] != null)
+
+                                if (isScratch)
                                 {
-                                    if (isScratch)
-                                    {
-                                        ++totalBackSpinNotes;
-                                    }
-                                    else
-                                    {
-                                        ++totalLongNotes;
-                                    }
-
-                                    if(metaOnly) break;
-                                    var lastTimeline = lastNote[laneNumber].Timeline;
-                                    var ln = new LongNote(lastNote[laneNumber].Wav);
-
-                                    ln.Tail = new LongNote(NoWav)
-                                    {
-                                        Head = ln
-                                    };
-                                    lastTimeline.SetNote(
-                                        laneNumber, ln
-                                    );
-                                    timeline.SetNote(
-                                        laneNumber, ln.Tail
-                                    );
+                                    ++totalBackSpinNotes;
                                 }
+                                else
+                                {
+                                    ++totalLongNotes;
+                                }
+
+                                var last = lastNote[laneNumber];
+                                lastNote[laneNumber] = null;
+                                if(metaOnly) break;
+                                
+                                var lastTimeline = last.Timeline;
+                                var ln = new LongNote(last.Wav);
+
+                                ln.Tail = new LongNote(NoWav)
+                                {
+                                    Head = ln
+                                };
+                                lastTimeline.SetNote(
+                                    laneNumber, ln
+                                );
+                                timeline.SetNote(
+                                    laneNumber, ln.Tail
+                                );
+                                
                             }
                             else
                             {
+                                var note = new Note(ToWaveId(val));
+                                lastNote[laneNumber] = note;
                                 ++totalNotes;
                                 if(isScratch) ++totalScratchNotes;
                                 if(metaOnly) break;
-                                var note = new Note(ToWaveId(val));
                                 timeline.SetNote(laneNumber, note);
-                                lastNote[laneNumber] = note;
+                                
                             }
 
                             break;
