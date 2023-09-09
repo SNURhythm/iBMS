@@ -17,21 +17,21 @@ public class Effect
         }
     }
 
-    public virtual void StartEffect(float timeOffset, bool pause = false)
+    public void StartEffect(float timeOffset, bool pause = false)
     {
         currentTime = timeOffset;
         IsStarted = true;
         isPaused = pause;
     }
-    public virtual void PauseEffect()
+    public void PauseEffect()
     {
         isPaused = true;
     }
-    public virtual void ResumeEffect()
+    public void ResumeEffect()
     {
         isPaused = false;
     }
-    public virtual void StopEffect()
+    public void StopEffect()
     {
         IsStarted = false;
         currentTime = 0f;
