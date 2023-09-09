@@ -414,7 +414,6 @@ public class BMSParser
                         case Channel.P1MineKeyBase:
                             // landmine
                             totalLandmineNotes++;
-                            Debug.Log($"landmine: {val}");
                             if(metaOnly) break;
                             var damage = DecodeBase36(val)/2f;
                             timeline.SetNote(

@@ -75,6 +75,7 @@ public class RhythmControl : MonoBehaviour
     private const int MaxBgRealChannels = MaxRealChannels - 1024;
     private const long TimeMargin = 5000000; // 5 seconds
     private byte[] metronomeBytes;
+    private byte[] landmineBytes;
 
 
     private Dictionary<int, Sound> wavSounds = new();
@@ -92,6 +93,7 @@ public class RhythmControl : MonoBehaviour
     private BGAPlayer bgaPlayer;
     private GameState gameState = null;
     private bool IsPaused = false;
+    private bool[] isLanePressed = new bool[8];
 
 
     private FMOD.System system;
@@ -133,6 +135,7 @@ public class RhythmControl : MonoBehaviour
         bgaPlayer = new();
         bmsRenderer = GetComponent<BMSRenderer>();
         metronomeBytes = Resources.Load<TextAsset>("Sfx/metronome").bytes;
+        landmineBytes = Resources.Load<TextAsset>("Sfx/explosion").bytes;
         LoadGame();
         var token = mainLoopTokenSource.Token;
         mainLoopTask = Task.Run(() =>
@@ -268,6 +271,17 @@ public class RhythmControl : MonoBehaviour
                         if (token.IsCancellationRequested) return;
                         if (note == null) continue;
                         if (note.IsPlayed) continue;
+                        if (note is LandmineNote)
+                        {
+                            note.Press(time);
+                            if (isLanePressed[note.Lane])
+                            {
+                                PlayNoteSound(note);
+                                Debug.Log("Landmine");
+                                
+                            }
+                            continue;
+                        }
                         if (note is LongNote { IsTail: true } longNote)
                         {
                             if (!longNote.IsHolding) continue;
@@ -283,7 +297,6 @@ public class RhythmControl : MonoBehaviour
                         {
                             if(GameManager.Instance.AutoPlay)
                             {
-                                if(note is LandmineNote) continue;
                                 PressNote(note, time);
                                 bmsRenderer.StartLaneBeamEffect(note.Lane);
                                 if (note is not LongNote { IsTail: false })
@@ -315,6 +328,7 @@ public class RhythmControl : MonoBehaviour
 
     public void PressLane(int lane, double inputDelay = 0)
     {
+        isLanePressed[lane] = true;
         bmsRenderer.StartLaneBeamEffect(lane);
         if (gameState == null) return;
         if (!gameState.IsPlaying) return;
@@ -336,6 +350,7 @@ public class RhythmControl : MonoBehaviour
                 var note = timeline.Notes[lane];
                 if (note == null) continue;
                 if (note.IsPlayed) continue;
+                if (note is LandmineNote) continue;
                 PressNote(note, pressedTime);
                 return;
 
@@ -345,6 +360,7 @@ public class RhythmControl : MonoBehaviour
 
     public void ReleaseLane(int lane, double inputDelay = 0)
     {
+        isLanePressed[lane] = false;
         bmsRenderer.ResumeLaneBeamEffect(lane);
         if (gameState == null) return;
         if (!gameState.IsPlaying) return;
@@ -368,15 +384,20 @@ public class RhythmControl : MonoBehaviour
             }
         }
     }
-
-    private void PressNote(Note note, long pressedTime)
+    
+    private void PlayNoteSound(Note note)
     {
-        if (GameManager.Instance.KeySound && note.Wav != BMSParser.NoWav)
+        if ((GameManager.Instance.KeySound || note is LandmineNote) && note.Wav != BMSParser.NoWav)
         {
             var thread = new System.Threading.Thread(() => system.playSound(wavSounds[note.Wav], channelGroup, false, out var channel));
             thread.Start();
 
         }
+    }
+
+    private void PressNote(Note note, long pressedTime)
+    {
+        PlayNoteSound(note);
         var judgeResult = gameState.Judge.JudgeNow(note, pressedTime);
         if (judgeResult.Judgement != Judgement.NONE)
         {
@@ -523,6 +544,19 @@ public class RhythmControl : MonoBehaviour
         return sound;
     }
 
+    private void CreateSound(byte[] bytes, out Sound sound)
+    {
+        var createSoundExInfo = new CREATESOUNDEXINFO
+        {
+            length = (uint)bytes.Length,
+            cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
+        };
+        var result = system.createSound(bytes, MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
+            ref createSoundExInfo, out sound);
+        if (result != RESULT.OK) Debug.Log($"createSound failed. {result}");
+    }
+
+
     private async void LoadGame()
     {
 
@@ -547,7 +581,8 @@ public class RhythmControl : MonoBehaviour
             ct.ThrowIfCancellationRequested();
             parser.Parse(GameManager.Instance.BmsPath, addReadyMeasure);
             ct.ThrowIfCancellationRequested();
-            wavSounds[BMSParser.MetronomeWav] = GetMetronomeSound();
+            CreateSound(metronomeBytes, out var metronomeSound);
+            wavSounds[BMSParser.MetronomeWav] = metronomeSound;
 
             var tasks = new Task<(Sound, (int, string))>[36 * 36];
             for (var i = 0; i < 36 * 36; i++)
@@ -569,23 +604,16 @@ public class RhythmControl : MonoBehaviour
                         }
                         else
                         {
-                            var createSoundExInfo = new CREATESOUNDEXINFO
-                            {
-                                length = (uint)wavBytes.Length,
-                                cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO))
-                            };
-                            result = system.createSound(wavBytes,
-                                MODE.OPENMEMORY | MODE.CREATESAMPLE | MODE.ACCURATETIME,
-                                ref createSoundExInfo, out sound);
-                            if (result != RESULT.OK)
-                            {
-                                Debug.LogWarning($"createSound failed wav{id}. {result}");
-                            }
+                            CreateSound(wavBytes, out sound);
 
                             ct.ThrowIfCancellationRequested();
 
                             // _system.playSound(wav[i], _channelGroup, true, out channel);
                         }
+                    } else if (id == 0)
+                    {
+                        // default landmine sound
+                        CreateSound(landmineBytes, out sound);
                     }
 
                     (int id, string path) bgainfo = (-1, null);
@@ -598,7 +626,6 @@ public class RhythmControl : MonoBehaviour
                     return (sound, bgainfo);
                 }, ct);
             }
-
             try
             {
                 Task.WhenAll(tasks).Wait(ct);
