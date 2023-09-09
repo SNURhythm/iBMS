@@ -390,7 +390,8 @@ public class BMSRenderer : MonoBehaviour
             noteObject.transform.localPosition = new Vector3(left, OffsetToTop(offset), 0);
             noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
             var spriteRenderer = noteObject.GetComponent<SpriteRenderer>();
-            spriteRenderer.color = noteColors[note.Lane];
+            spriteRenderer.color = note is LandmineNote ? Color.magenta : noteColors[note.Lane];
+
             spriteRenderer.sortingLayerName = "Note";
             noteObject.name = "Note";
             state.noteObjects.Add(note, noteObject);

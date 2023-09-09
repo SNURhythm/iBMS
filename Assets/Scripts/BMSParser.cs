@@ -94,7 +94,7 @@ public class BMSParser
 
                 if (!line.StartsWith("#")) continue;
 
-                if (char.IsDigit(line[1]) && char.IsDigit(line[2]) && char.IsDigit(line[3]) && char.IsDigit(line[4]) && char.IsDigit(line[5]) && line[6] == ':')
+                if (char.IsDigit(line[1]) && char.IsDigit(line[2]) && char.IsDigit(line[3]) && line[6] == ':')
                 {
                     var measure = int.Parse(line.Substring(1, 3))
                                   + (addReadyMeasure ? 1 : 0);
@@ -173,6 +173,7 @@ public class BMSParser
         int totalLongNotes = 0;
         int totalScratchNotes = 0;
         int totalBackSpinNotes = 0;
+        int totalLandmineNotes = 0;
         var currentBpm = chart.Meta.Bpm;
         var minBpm = chart.Meta.Bpm;
         var maxBpm = chart.Meta.Bpm;
@@ -411,6 +412,14 @@ public class BMSParser
 
                             break;
                         case Channel.P1MineKeyBase:
+                            // landmine
+                            totalLandmineNotes++;
+                            Debug.Log($"landmine: {val}");
+                            if(metaOnly) break;
+                            var damage = DecodeBase36(val)/2f;
+                            timeline.SetNote(
+                                laneNumber, new LandmineNote(damage)
+                            );
                             break;
                     }
                 }

@@ -134,17 +134,18 @@ public class RhythmControl : MonoBehaviour
         bmsRenderer = GetComponent<BMSRenderer>();
         metronomeBytes = Resources.Load<TextAsset>("Sfx/metronome").bytes;
         LoadGame();
+        var token = mainLoopTokenSource.Token;
         mainLoopTask = Task.Run(() =>
         {
             while (true)
             {
-                if (mainLoopTokenSource.IsCancellationRequested) break;
+                if (token.IsCancellationRequested) break;
                 if (gameState == null) continue;
                 if (!gameState.IsPlaying) continue;
                 try
                 {
                     var currentDspTime = gameState.GetCurrentDspTimeMicro(system, channelGroup);
-                    CheckPassedTimeline(currentDspTime);
+                    CheckPassedTimeline(currentDspTime, token);
                 }
                 catch (Exception e)
                 {
@@ -153,7 +154,7 @@ public class RhythmControl : MonoBehaviour
                 }
             }
             Debug.Log("MainLoopTask is canceled");
-        }, mainLoopTokenSource.Token);
+        }, token);
 
     }
 
@@ -225,15 +226,18 @@ public class RhythmControl : MonoBehaviour
 
     }
 
-    private void CheckPassedTimeline(long time)
+    private void CheckPassedTimeline(long time, CancellationToken token)
     {
         var measures = parser.GetChart().Measures;
+        if (token.IsCancellationRequested || gameState == null) return;
         for (int i = gameState.PassedMeasureCount; i < measures.Count; i++)
         {
+            if (token.IsCancellationRequested) return;
             var isFirstMeasure = i == gameState.PassedMeasureCount;
             var measure = measures[i];
             for (int j = isFirstMeasure ? gameState.PassedTimelineCount : 0; j < measure.Timelines.Count; j++)
             {
+                if (token.IsCancellationRequested) return;
                 var timeline = measure.Timelines[j];
                 if (timeline.Timing < time - 200000)
                 {
@@ -244,6 +248,7 @@ public class RhythmControl : MonoBehaviour
                     {
                         if (note == null) continue;
                         if (note.IsPlayed) continue;
+                        if (note is LandmineNote) continue;
 
 
                         if (note is LongNote { IsTail: false } ln)
@@ -260,6 +265,7 @@ public class RhythmControl : MonoBehaviour
                     // auto-release long notes
                     foreach (var note in timeline.Notes)
                     {
+                        if (token.IsCancellationRequested) return;
                         if (note == null) continue;
                         if (note.IsPlayed) continue;
                         if (note is LongNote { IsTail: true } longNote)
@@ -277,6 +283,7 @@ public class RhythmControl : MonoBehaviour
                         {
                             if(GameManager.Instance.AutoPlay)
                             {
+                                if(note is LandmineNote) continue;
                                 PressNote(note, time);
                                 bmsRenderer.StartLaneBeamEffect(note.Lane);
                                 if (note is not LongNote { IsTail: false })
