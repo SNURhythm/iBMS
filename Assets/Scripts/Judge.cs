@@ -11,6 +11,7 @@ public enum Judgement
     GOOD,
     BAD,
     KPOOR,
+    POOR,
     NONE
 }
 public struct JudgeResult
@@ -22,11 +23,11 @@ public struct JudgeResult
         Diff = diff;
     }
 
-    public Judgement Judgement { get; }
+    public Judgement Judgement { get; set; }
     public long Diff { get; }
     public bool ShouldComboBreak
     {
-        get => Judgement == Judgement.BAD;
+        get => Judgement == Judgement.BAD || Judgement == Judgement.POOR;
     }
     public bool IsNotePlayed
     {

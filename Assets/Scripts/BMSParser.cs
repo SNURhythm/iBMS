@@ -94,7 +94,7 @@ public class BMSParser
 
                 if (!line.StartsWith("#")) continue;
 
-                if (char.IsDigit(line[1]) && char.IsDigit(line[2]) && char.IsDigit(line[3]) && char.IsDigit(line[4]) && char.IsDigit(line[5]) && line[6] == ':')
+                if (char.IsDigit(line[1]) && char.IsDigit(line[2]) && char.IsDigit(line[3]) && line[6] == ':')
                 {
                     var measure = int.Parse(line.Substring(1, 3))
                                   + (addReadyMeasure ? 1 : 0);
@@ -173,6 +173,7 @@ public class BMSParser
         int totalLongNotes = 0;
         int totalScratchNotes = 0;
         int totalBackSpinNotes = 0;
+        int totalLandmineNotes = 0;
         var currentBpm = chart.Meta.Bpm;
         var minBpm = chart.Meta.Bpm;
         var maxBpm = chart.Meta.Bpm;
@@ -320,43 +321,46 @@ public class BMSParser
                             break;
                         case Channel.P1KeyBase:
                             var ch = DecodeBase36(val);
-                            if (ch == lnobj)
+                            if (ch == lnobj && lastNote[laneNumber] != null)
                             {
-                                if (lastNote[laneNumber] != null)
+
+                                if (isScratch)
                                 {
-                                    if (isScratch)
-                                    {
-                                        ++totalBackSpinNotes;
-                                    }
-                                    else
-                                    {
-                                        ++totalLongNotes;
-                                    }
-
-                                    if(metaOnly) break;
-                                    var lastTimeline = lastNote[laneNumber].Timeline;
-                                    var ln = new LongNote(lastNote[laneNumber].Wav);
-
-                                    ln.Tail = new LongNote(NoWav)
-                                    {
-                                        Head = ln
-                                    };
-                                    lastTimeline.SetNote(
-                                        laneNumber, ln
-                                    );
-                                    timeline.SetNote(
-                                        laneNumber, ln.Tail
-                                    );
+                                    ++totalBackSpinNotes;
                                 }
+                                else
+                                {
+                                    ++totalLongNotes;
+                                }
+
+                                var last = lastNote[laneNumber];
+                                lastNote[laneNumber] = null;
+                                if(metaOnly) break;
+                                
+                                var lastTimeline = last.Timeline;
+                                var ln = new LongNote(last.Wav);
+
+                                ln.Tail = new LongNote(NoWav)
+                                {
+                                    Head = ln
+                                };
+                                lastTimeline.SetNote(
+                                    laneNumber, ln
+                                );
+                                timeline.SetNote(
+                                    laneNumber, ln.Tail
+                                );
+                                
                             }
                             else
                             {
+                                var note = new Note(ToWaveId(val));
+                                lastNote[laneNumber] = note;
                                 ++totalNotes;
                                 if(isScratch) ++totalScratchNotes;
                                 if(metaOnly) break;
-                                var note = new Note(ToWaveId(val));
                                 timeline.SetNote(laneNumber, note);
-                                lastNote[laneNumber] = note;
+                                
                             }
 
                             break;
@@ -408,6 +412,13 @@ public class BMSParser
 
                             break;
                         case Channel.P1MineKeyBase:
+                            // landmine
+                            totalLandmineNotes++;
+                            if(metaOnly) break;
+                            var damage = DecodeBase36(val)/2f;
+                            timeline.SetNote(
+                                laneNumber, new LandmineNote(damage)
+                            );
                             break;
                     }
                 }
@@ -427,7 +438,7 @@ public class BMSParser
                 if(cancellationToken.IsCancellationRequested) return;
 
                 // Debug.Log($"measure: {i}, position: {position}, lastPosition: {lastPosition} bpm: {bpm} scale: {measure.scale} interval: {240 * 1000 * 1000 * (position - lastPosition) * measure.scale / bpm}");
-                double interval = 240 * 1000 * 1000 * (position - lastPosition) * measure.Scale / currentBpm;
+                double interval = 240000000D * (position - lastPosition) * measure.Scale / currentBpm;
                 timePassed += interval;
                 timeline.Timing = (long)timePassed;
                 if (timeline.BpmChange)
@@ -457,7 +468,7 @@ public class BMSParser
                 };
                 measure.Timelines.Add(timeline);
             }
-            timePassed += (long)(240 * 1000 * 1000 * (1 - lastPosition) * measure.Scale / currentBpm);
+            timePassed += (240000000D * (1 - lastPosition) * measure.Scale / currentBpm);
 
         }
         // Debug.Log($"Postprocessing took: "+ stopwatch.ElapsedMilliseconds + "ms");

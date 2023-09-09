@@ -21,7 +21,7 @@ class RendererState
         {
             Object.Destroy(noteObject);
         }
-        
+
         // Destroy all measure line objects
         foreach (var measureLineObject in measureLineObjects.Values)
         {
@@ -36,7 +36,7 @@ public class BMSRenderer : MonoBehaviour
     public GameObject ParticlePrefab;
     private LaneBeamEffect[] laneBeamEffects;
     private GameObject[] lineBeams;
-    private GameObject[] keyBombs;
+    private KeyBombEffect[] keyBombs;
     private Chart chart;
     private float laneWidth = 3.0f;
     private readonly float laneMargin = 0f;
@@ -72,7 +72,7 @@ public class BMSRenderer : MonoBehaviour
         this.lastTimeline = chart.Measures[0].Timelines[0];
 
         TimeLine lastTimeline = chart.Measures[0].Timelines[0];
-        lastTimeline.Pos = 0.0;
+        lastTimeline.Pos = 0.0D;
 
         foreach (Measure measure in chart.Measures)
         {
@@ -83,7 +83,7 @@ public class BMSRenderer : MonoBehaviour
                 lastTimeline = timeline;
             }
         }
-      
+
     }
 
     public void Reset()
@@ -109,8 +109,8 @@ public class BMSRenderer : MonoBehaviour
         squarePrefab.GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>("Sprites/Square");
         squarePrefab.name = "Square";
         spawnPosition = NoteArea.transform.localScale.y;
-        
-          laneWidth = NoteArea.transform.localScale.x / (GameManager.Instance.KeyMode + 1);
+
+        laneWidth = NoteArea.transform.localScale.x / (GameManager.Instance.KeyMode + 1);
         var laneDivider = new GameObject();
         laneDivider.SetActive(false);
 
@@ -118,7 +118,7 @@ public class BMSRenderer : MonoBehaviour
         var laneDividerSr = laneDivider.AddComponent<SpriteRenderer>();
         laneDividerSr.color = new Color(0.5f, 0.5f, 0.5f, 0.2f);
         laneDividerSr.sprite = Resources.Load<Sprite>("Sprites/Square");
-        
+
         var laneBeam = new GameObject();
 
         laneBeam.SetActive(false);
@@ -128,11 +128,11 @@ public class BMSRenderer : MonoBehaviour
         laneBeamSr.drawMode = SpriteDrawMode.Sliced;
         laneBeamSr.size = new Vector2(laneWidth, NoteArea.transform.localScale.y);
         Debug.Log("keys: " + GameManager.Instance.KeyMode);
-        keyBombs = new GameObject[8];
+        keyBombs = new KeyBombEffect[8];
         laneBeamEffects = new LaneBeamEffect[8];
         for (int i = 0; i < 8; i++)
         {
-            if (i != GameManager.Instance.KeyMode-1 && i <= GameManager.Instance.KeyMode)
+            if (i != GameManager.Instance.KeyMode - 1 && i <= GameManager.Instance.KeyMode)
             {
                 laneDivider.name = "LaneDivider";
                 var newLaneDivider = Instantiate(laneDivider, LaneArea.transform);
@@ -149,34 +149,32 @@ public class BMSRenderer : MonoBehaviour
             keyBomb.GetComponent<ParticleSystemRenderer>().sortingLayerName = "KeyBomb";
             var ps = keyBomb.GetComponent<ParticleSystem>();
             var main = ps.main;
-            main.duration = 0.1f;
-            main.simulationSpeed = 2;
-            keyBombs[i] = keyBomb;
-            
+            keyBomb.SetActive(true);
+            ps.Pause();
+            keyBombs[i] = new KeyBombEffect(ps, 2f);
+
             var newLaneBeam = Instantiate(laneBeam, LaneArea.transform);
             newLaneBeam.SetActive(true);
             newLaneBeam.transform.localPosition = new Vector3(LaneToLeft(i), NoteArea.transform.localScale.y / 2 - judgeLineHeight / 2, 0);
             newLaneBeam.GetComponent<SpriteRenderer>().color = noteColors[i];
             laneBeamEffects[i] = new LaneBeamEffect(newLaneBeam, 0.2f);
-            
+
         }
     }
 
     public void PlayKeyBomb(int laneNumber, Judgement judgement)
     {
-        var keyBomb = keyBombs[laneNumber];
-        keyBomb.SetActive(true);
-        var ps = keyBomb.GetComponent<ParticleSystem>();
-
-        ps.Play();
+        var ps = keyBombs[laneNumber];
+        //keyBomb.SetActive(true);
+        ps.StartEffect(0);
 
     }
-    
+
     public void StartLaneBeamEffect(int laneNumber)
     {
         laneBeamEffects[laneNumber].StartEffect(0, true);
     }
-    
+
     public void ResumeLaneBeamEffect(int laneNumber)
     {
         laneBeamEffects[laneNumber].ResumeEffect();
@@ -188,11 +186,12 @@ public class BMSRenderer : MonoBehaviour
         for (int i = 0; i < 8; i++)
         {
             laneBeamEffects[i].Tick();
+            keyBombs[i].Tick();
         }
     }
     public void Draw(long currentTime)
     {
-        if(state == null) return;
+        if (state == null) return;
 
 
         var measures = chart.Measures;
@@ -355,14 +354,14 @@ public class BMSRenderer : MonoBehaviour
 
         if (state.measureLineObjects.ContainsKey(measure))
         {
-            state.measureLineObjects[measure].transform.localPosition = new Vector3(laneWidth * (GameManager.Instance.KeyMode) / 2 + laneWidth/2, top - noteHeight / 2, 0);
+            state.measureLineObjects[measure].transform.localPosition = new Vector3(laneWidth * (GameManager.Instance.KeyMode) / 2 + laneWidth / 2, top - noteHeight / 2, 0);
             state.measureLineObjects[measure].SetActive(true);
         }
         else
         {
             var measureLineObject = GetInstance(squarePrefab);
-            measureLineObject.transform.localPosition = new Vector3(laneWidth * (GameManager.Instance.KeyMode) / 2 + laneWidth/2, top - noteHeight / 2, 0);
-            measureLineObject.transform.localScale = new Vector3(laneWidth * (GameManager.Instance.KeyMode+1), 0.2f, 0);
+            measureLineObject.transform.localPosition = new Vector3(laneWidth * (GameManager.Instance.KeyMode) / 2 + laneWidth / 2, top - noteHeight / 2, 0);
+            measureLineObject.transform.localScale = new Vector3(laneWidth * (GameManager.Instance.KeyMode + 1), 0.2f, 0);
             var spriteRenderer = measureLineObject.GetComponent<SpriteRenderer>();
             spriteRenderer.color = new Color(0.5f, 0.5f, 0.5f, 0.5f);
 
@@ -391,7 +390,8 @@ public class BMSRenderer : MonoBehaviour
             noteObject.transform.localPosition = new Vector3(left, OffsetToTop(offset), 0);
             noteObject.transform.localScale = new Vector3(laneWidth, noteHeight, 0);
             var spriteRenderer = noteObject.GetComponent<SpriteRenderer>();
-            spriteRenderer.color = noteColors[note.Lane];
+            spriteRenderer.color = note is LandmineNote ? Color.magenta : noteColors[note.Lane];
+
             spriteRenderer.sortingLayerName = "Note";
             noteObject.name = "Note";
             state.noteObjects.Add(note, noteObject);
@@ -407,7 +407,7 @@ public class BMSRenderer : MonoBehaviour
         var startTop = OffsetToTop(startOffset);
 
         var endTop = OffsetToTop(endOffset);
-        
+
         if (head.IsPlayed)
         {
             if (endTop < judgeLineBottom)
@@ -478,13 +478,13 @@ public class BMSRenderer : MonoBehaviour
     float LaneToLeft(int lane)
     {
         if (lane == 7) return laneWidth / 2;
-        return (lane + 1) % (GameManager.Instance.KeyMode+1) * (laneWidth + laneMargin) + laneWidth / 2;
+        return (lane + 1) % (GameManager.Instance.KeyMode + 1) * (laneWidth + laneMargin) + laneWidth / 2;
     }
 
     float OffsetToTop(double offset)
     {
         // TODO: Implement
-        return (float)(judgeLinePosition + offset * 0.00007f);
+        return (float)(judgeLinePosition + offset * 0.00007D);
     }
 
 
